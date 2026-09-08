@@ -34,18 +34,56 @@ You don't have to buy a domain. Two solid free options:
 
 If you'd rather use a paid domain later, the earlier A-record/CNAME instructions in this README still apply — nothing about the free routes locks you out of switching.
 
-## Important: how data actually persists here
+## Important: this now needs a free Firebase project
 
-The app stores debates, arguments, and messages using a storage API (`window.storage`) that only exists inside Claude's own artifact preview. Once this is a plain static site on GitHub Pages, that API won't be present, so the app automatically falls back to:
+To make debates genuinely public — everyone who visits sees the same topics, categories, votes, and messages — this version stores everything in **Firebase** (Firestore + Authentication) instead of browser-only storage. That's the tradeoff for making the "public topics" and "real accounts" features actually work between different people.
 
-1. `localStorage` in the visitor's own browser, or
-2. an in-memory store if even that's blocked.
+### One-time setup (about 5 minutes, free, no credit card)
 
-**What this means in practice:** each visitor gets their own private copy of the site's data, tied to their browser. If you post a debate and a friend visits the same URL from their own computer, they won't see it — and the "Debate" / private messaging feature won't actually reach them, since there's no shared backend to relay it.
+1. Go to **console.firebase.google.com** and create a project.
+2. Click the **`</>`** (web app) icon to register a web app — it hands you a `firebaseConfig` object.
+3. Go to **Authentication → Sign-in method** and enable **Email/Password**.
+4. Go to **Firestore Database → Create database**. Choose "production mode."
+5. In Firestore, go to the **Rules** tab and paste this in (replacing the default), then Publish:
 
-The site will work great for one person testing it solo, or for a demo. It will *not* work as a real multi-person debate platform until it's connected to a real shared backend (a small database). If you want that next, the common lightweight options are:
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /topics/{topicId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      match /arguments/{argId} {
+        allow read: if true;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+      }
+    }
+    match /threads/{threadId} {
+      allow read, write: if request.auth != null;
+      match /messages/{msgId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+    match /users/{uid} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
+```
 
-- **Firebase (Firestore)** — free tier, no server to manage, works well from a static site. You'd create a free Firebase project yourself (this needs your own Google account, so it's a step you'd do), then I can wire the app's storage calls up to it.
-- **Supabase** — similar idea, Postgres-based, also has a free tier.
+   This lets anyone read topics/arguments (so debates are public), but only logged-in users can post, vote, or message. Note: thread/message reads are open to any logged-in user rather than locked to just the two participants — Firestore's query rules make strict per-thread privacy more involved, so this is a pragmatic simplification, not bank-grade privacy.
 
-Happy to do that integration whenever you're ready — just say the word and let me know which you'd rather use.
+6. Open `index.html`, find the `firebaseConfig` object near the top of the `<script type="module">` block, and replace the placeholder values with your real ones from step 2.
+7. Commit and push — Vercel/GitHub Pages redeploys automatically.
+
+Until you do this, the live site shows a plain "connect Firebase" setup screen instead of the app — so it's obvious what's missing rather than silently broken.
+
+### What you get once it's connected
+- Every visitor sees the same public list of debates, filterable by category.
+- Real accounts (email + password) — sign up, log in, log out.
+- Voting, arguments, and topics sync live across everyone's browsers.
+- A **Share** button on each debate copies a direct link (`?topic=...`) that opens straight to that debate for anyone.
+- Messaging is real — if you challenge someone by name and they're logged in on their own device, they'll see it in their inbox.

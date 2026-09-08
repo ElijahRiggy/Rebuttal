@@ -223,6 +223,43 @@
   .msg-input-row{display:flex;gap:8px;}
   .msg-input-row textarea{flex:1;min-height:44px;margin:0;}
   .msg-input-row button{white-space:nowrap;}
+
+  /* Auth */
+  .auth-nav{display:flex;align-items:center;gap:8px;}
+  .auth-btn{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-soft);background:none;border:1px solid var(--hair);border-radius:20px;padding:6px 14px;cursor:pointer;}
+  .auth-btn:hover{border-color:var(--gold);color:var(--gold);}
+  .auth-btn.filled{background:var(--text);color:var(--bg);border-color:var(--text);}
+  .auth-btn.filled:hover{opacity:.85;}
+  .user-chip{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-soft);}
+  .user-chip strong{color:var(--text);font-weight:500;}
+  .setup-screen{max-width:640px;margin:60px auto;padding:0 24px;}
+  .setup-screen h1{font-family:'Fraunces',serif;font-size:26px;font-weight:600;margin:0 0 12px;}
+  .setup-screen p{font-size:14.5px;color:var(--text-soft);line-height:1.6;}
+  .setup-screen ol{font-size:14.5px;color:var(--text-soft);line-height:1.9;padding-left:20px;}
+  .setup-screen code{background:var(--surface);border:1px solid var(--hair);border-radius:4px;padding:2px 6px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text);}
+  .setup-screen pre{background:var(--surface);border:1px solid var(--hair);border-radius:6px;padding:14px 16px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;overflow-x:auto;color:var(--text);}
+
+  /* Categories */
+  .category-filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;}
+  .category-chip{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-soft);background:var(--surface);border:1px solid var(--hair);border-radius:20px;padding:5px 13px;cursor:pointer;}
+  .category-chip:hover{border-color:var(--gold);color:var(--gold);}
+  .category-chip.active{background:var(--text);color:var(--bg);border-color:var(--text);}
+  .category-badge{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--gold);background:var(--gold-tint);border-radius:10px;padding:2px 9px;margin-bottom:8px;letter-spacing:.02em;}
+  select#t-category{
+    width:100%;font-family:'Inter',sans-serif;font-size:15px;color:var(--text);
+    background:#fff;border:1px solid var(--hair-strong);border-radius:4px;padding:10px 12px;
+    margin-bottom:16px;
+  }
+
+  /* Share + toast */
+  .topic-head-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;}
+  .share-btn{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-soft);background:var(--surface);border:1px solid var(--hair);border-radius:20px;padding:6px 14px;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+  .share-btn:hover{border-color:var(--gold);color:var(--gold);}
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--text);color:var(--bg);font-size:13.5px;padding:10px 18px;
+    border-radius:20px;z-index:60;font-family:'Inter',sans-serif;
+  }
 </style>
 </head>
 <body>
@@ -230,27 +267,63 @@
   <div class="loading">loading rebuttal…</div>
 </div>
 
-<script>
+<script type="module">
+/* ================== FIREBASE SETUP ==================
+   1. Go to https://console.firebase.google.com, create a free project.
+   2. In the project, click the "</>" (web app) icon to register a web app — this gives you a config object.
+   3. Enable Authentication → Sign-in method → Email/Password.
+   4. Enable Firestore Database → Create database → Start in production mode (rules are provided in the README).
+   5. Paste your config object below, replacing the placeholder.
+====================================================== */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+const NEEDS_SETUP = firebaseConfig.apiKey === "YOUR_API_KEY";
+
+const CATEGORIES = ['Society', 'Technology', 'Politics', 'Health', 'Entertainment', 'Sports', 'Science', 'Other'];
+
+let app, auth, db;
+let fb = {}; // holds imported firestore/auth functions once loaded
+
+if (!NEEDS_SETUP) {
+  const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+  const authMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
+  const fsMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  app = initializeApp(firebaseConfig);
+  auth = authMod.getAuth(app);
+  db = fsMod.getFirestore(app);
+  fb = { ...authMod, ...fsMod };
+}
+
 const state = {
-  view: 'list', topics: null, currentTopicId: null, currentArgs: null, argsError: false, voted: {},
-  myName: null,
-  inbox: [], currentThreadKey: null, currentThread: null, chatWithName: null, chatError: false,
-  pollHandle: null,
-  submittingTopic: false, submittingArg: { pro: false, con: false }, submittingMsg: false
+  view: 'list', user: null, authError: null,
+  topics: [], categoryFilter: 'all',
+  currentTopicId: null, currentTopic: null, currentArgs: [],
+  threads: [], currentThreadId: null, currentThread: null, chatWithUid: null, chatWithName: null, chatMessages: [],
+  submittingTopic: false, submittingArg: { pro: false, con: false }, submittingMsg: false, submittingAuth: false,
+  topicUnsubs: [], chatUnsubs: [], globalUnsubs: [],
+  toastMsg: null, toastTimer: null
 };
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
-function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function esc(s){ const d=document.createElement('div'); d.textContent=s ?? ''; return d.innerHTML; }
 function timeAgo(ts){
-  const s = Math.floor((Date.now()-ts)/1000);
+  if(!ts) return '';
+  const ms = ts.toMillis ? ts.toMillis() : ts;
+  const s = Math.floor((Date.now()-ms)/1000);
   if(s<60) return 'just now';
   const m = Math.floor(s/60); if(m<60) return m+'m';
   const h = Math.floor(m/60); if(h<24) return h+'h';
   const d = Math.floor(h/24); return d+'d';
 }
-function slug(name){ return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60); }
 function initials(name){
-  const parts = name.trim().split(/\s+/).slice(0,2);
+  const parts = (name||'?').trim().split(/\s+/).slice(0,2);
   return parts.map(w=>w[0].toUpperCase()).join('') || '?';
 }
 function avatarStyle(name){
@@ -261,259 +334,280 @@ function avatarStyle(name){
     {bg:'var(--surface-hi)', text:'var(--text)'}
   ];
   let hash = 0;
-  for(const c of name) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
+  for(const c of (name||'')) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
   return palette[hash % palette.length];
 }
-
-/* ---------- storage: resilient wrapper with fallback ---------- */
-const memoryStore = {};
-function hasNativeStorage(){
-  return typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function';
+function showToast(msg){
+  state.toastMsg = msg;
+  render();
+  if(state.toastTimer) clearTimeout(state.toastTimer);
+  state.toastTimer = setTimeout(() => { state.toastMsg = null; render(); }, 2500);
 }
-function withTimeout(promise, ms){
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('storage timeout')), ms);
-    promise.then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
-  });
-}
-async function storageGet(key, shared){
-  if(hasNativeStorage()){
-    try{
-      const res = await withTimeout(window.storage.get(key, shared), 1200);
-      return res ? res.value : null;
-    }catch(e){}
-  }
-  try{
-    const raw = localStorage.getItem('rb:'+key);
-    if(raw !== null) return raw;
-  }catch(e){}
-  return Object.prototype.hasOwnProperty.call(memoryStore, key) ? memoryStore[key] : null;
-}
-async function storageSet(key, value, shared){
-  let nativeOk = false;
-  if(hasNativeStorage()){
-    try{ await withTimeout(window.storage.set(key, value, shared), 1200); nativeOk = true; }catch(e){}
-  }
-  if(!nativeOk){
-    try{ localStorage.setItem('rb:'+key, value); }catch(e){}
-  }
-  memoryStore[key] = value;
-}
-function raceTimeout(promise, ms, fallbackValue){
-  return new Promise((resolve) => {
-    let done = false;
-    const timer = setTimeout(() => { if(!done){ done = true; resolve(fallbackValue); } }, ms);
-    promise.then(v => { if(!done){ done = true; clearTimeout(timer); resolve(v); } },
-                 () => { if(!done){ done = true; clearTimeout(timer); resolve(fallbackValue); } });
-  });
+function pushUrl(qs){
+  history.pushState({}, '', location.pathname + qs);
 }
 
-/* ---------- topics / arguments storage ---------- */
-async function loadTopics(){
-  try{
-    const raw = await storageGet('topics', true);
-    state.topics = raw ? JSON.parse(raw) : [];
-  }catch(e){ state.topics = []; }
+/* ---------- auth ---------- */
+function requireAuth(){
+  if(!state.user){ openAuthModal('login'); return false; }
+  return true;
 }
-async function saveTopics(){
-  await storageSet('topics', JSON.stringify(state.topics), true);
-}
-async function loadArgs(topicId){
-  try{
-    const raw = await storageGet('args:'+topicId, true);
-    return raw ? JSON.parse(raw) : [];
-  }catch(e){ return []; }
-}
-async function saveArgs(topicId, args){
-  await storageSet('args:'+topicId, JSON.stringify(args), true);
+function friendlyAuthError(code){
+  const map = {
+    'auth/email-already-in-use': 'That email already has an account — try logging in instead.',
+    'auth/invalid-email': 'That email address doesn\'t look right.',
+    'auth/weak-password': 'Password needs to be at least 6 characters.',
+    'auth/wrong-password': 'Wrong password.',
+    'auth/invalid-credential': 'Email or password is incorrect.',
+    'auth/user-not-found': 'No account with that email.',
+    'auth/too-many-requests': 'Too many attempts — wait a bit and try again.'
+  };
+  return map[code] || 'Something went wrong. Try again.';
 }
 
-/* ---------- identity ---------- */
-async function ensureName(){
-  if(state.myName) return state.myName;
-  try{
-    const raw = await storageGet('my-name', false);
-    if(raw){ state.myName = raw; return state.myName; }
-  }catch(e){}
-  return null;
-}
-function askName(onDone){
+function openAuthModal(mode){
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
+  const isSignup = mode === 'signup';
   backdrop.innerHTML = `<div class="modal">
-    <h3>What should we call you?</h3>
-    <input type="text" id="name-input" placeholder="Your name" style="margin-bottom:6px;">
-    <div id="name-err" class="err" style="display:none;">Enter a name to continue.</div>
+    <h3>${isSignup ? 'Create an account' : 'Log in'}</h3>
+    ${isSignup ? `<label for="auth-name">Display name</label><input type="text" id="auth-name" placeholder="How others will see you" style="margin-bottom:12px;">` : ''}
+    <label for="auth-email">Email</label>
+    <input type="text" id="auth-email" placeholder="you@example.com" style="margin-bottom:12px;">
+    <label for="auth-pass">Password</label>
+    <input type="text" id="auth-pass" placeholder="${isSignup ? 'At least 6 characters' : 'Your password'}" style="margin-bottom:6px;">
+    <div id="auth-err" class="err" style="display:none;"></div>
     <div class="modal-actions">
-      <button class="btn ghost" id="name-cancel">Cancel</button>
-      <button class="btn primary" id="name-ok">Continue</button>
+      <button class="btn ghost" id="auth-switch">${isSignup ? 'Log in instead' : 'Create account instead'}</button>
+      <button class="btn primary" id="auth-submit">${isSignup ? 'Sign up' : 'Log in'}</button>
     </div>
   </div>`;
   document.body.appendChild(backdrop);
-  const input = backdrop.querySelector('#name-input');
-  input.focus();
-  const close = () => document.body.removeChild(backdrop);
-  backdrop.querySelector('#name-cancel').onclick = close;
-  backdrop.querySelector('#name-ok').onclick = async () => {
-    const name = input.value.trim();
-    if(!name){ backdrop.querySelector('#name-err').style.display='block'; return; }
-    state.myName = name;
-    try{ await storageSet('my-name', name, false); }catch(e){}
-    close();
-    onDone(name);
+  const close = () => { if(document.body.contains(backdrop)) document.body.removeChild(backdrop); };
+  backdrop.querySelector('#auth-switch').onclick = () => { close(); openAuthModal(isSignup ? 'login' : 'signup'); };
+  backdrop.querySelector('#auth-submit').onclick = async () => {
+    if(state.submittingAuth) return;
+    const email = backdrop.querySelector('#auth-email').value.trim();
+    const pass = backdrop.querySelector('#auth-pass').value;
+    const name = isSignup ? backdrop.querySelector('#auth-name').value.trim() : null;
+    const errEl = backdrop.querySelector('#auth-err');
+    if(!email || !pass || (isSignup && !name)){
+      errEl.textContent = 'Fill in all fields.'; errEl.style.display = 'block'; return;
+    }
+    state.submittingAuth = true;
+    const btn = backdrop.querySelector('#auth-submit');
+    btn.disabled = true; btn.textContent = isSignup ? 'Creating…' : 'Logging in…';
+    try{
+      if(isSignup){
+        const cred = await fb.createUserWithEmailAndPassword(auth, email, pass);
+        await fb.updateProfile(cred.user, { displayName: name });
+        await fb.setDoc(fb.doc(db, 'users', cred.user.uid), { displayName: name, email, createdAt: fb.serverTimestamp() });
+        state.user = { uid: cred.user.uid, displayName: name, email };
+        subscribeInbox();
+        render();
+      } else {
+        await fb.signInWithEmailAndPassword(auth, email, pass);
+      }
+      close();
+    }catch(e){
+      errEl.textContent = friendlyAuthError(e.code); errEl.style.display = 'block';
+      btn.disabled = false; btn.textContent = isSignup ? 'Sign up' : 'Log in';
+    }finally{
+      state.submittingAuth = false;
+    }
   };
 }
-
-/* ---------- messaging (threads + inbox) ---------- */
-function threadKeyFor(a, b){
-  const s = [slug(a), slug(b)].sort();
-  return 'thread-' + s[0] + '_' + s[1];
-}
-async function getThread(key){
-  try{
-    const raw = await storageGet(key, true);
-    return raw ? JSON.parse(raw) : null;
-  }catch(e){ return null; }
-}
-async function saveThread(key, thread){
-  await storageSet(key, JSON.stringify(thread), true);
-}
-async function getInbox(name){
-  try{
-    const raw = await storageGet('inbox-'+slug(name), true);
-    return raw ? JSON.parse(raw) : [];
-  }catch(e){ return []; }
-}
-async function saveInbox(name, list){
-  await storageSet('inbox-'+slug(name), JSON.stringify(list), true);
-}
-async function upsertInboxEntry(name, entry){
-  const inbox = await getInbox(name);
-  const idx = inbox.findIndex(e => e.threadKey === entry.threadKey);
-  if(idx >= 0) inbox[idx] = { ...inbox[idx], ...entry };
-  else inbox.push(entry);
-  await saveInbox(name, inbox);
+async function logOut(){
+  await fb.signOut(auth);
+  goList();
 }
 
-async function postMessage(threadKey, otherName, text){
-  const name = state.myName;
-  let thread = await getThread(threadKey);
-  if(!thread) thread = { id: threadKey, participants: [name, otherName], messages: [] };
-  const msg = { id: uid(), author: name, text, ts: Date.now() };
-  thread.messages.push(msg);
-  await saveThread(threadKey, thread);
-  const now = Date.now();
-  await upsertInboxEntry(name, { threadKey, otherName, lastText: text, lastAuthor: name, lastTs: now, lastReadTs: now });
-  const theirInbox = await getInbox(otherName);
-  const existing = theirInbox.find(e => e.threadKey === threadKey);
-  const theirReadTs = existing ? existing.lastReadTs : 0;
-  await upsertInboxEntry(otherName, { threadKey, otherName: name, lastText: text, lastAuthor: name, lastTs: now, lastReadTs: theirReadTs });
-  return thread;
+/* ---------- realtime subscriptions ---------- */
+function subscribeTopics(){
+  const q = fb.query(fb.collection(db, 'topics'), fb.orderBy('createdAt', 'desc'), fb.limit(200));
+  const unsub = fb.onSnapshot(q, snap => {
+    state.topics = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if(state.view === 'list') render();
+  }, err => console.error('topics sub error', err));
+  state.globalUnsubs.push(unsub);
+}
+function subscribeInbox(){
+  cleanupGlobalInboxSub();
+  if(!state.user) { state.threads = []; return; }
+  const q = fb.query(fb.collection(db, 'threads'), fb.where('participantUids', 'array-contains', state.user.uid));
+  const unsub = fb.onSnapshot(q, snap => {
+    state.threads = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  }, err => console.error('inbox sub error', err));
+  state.globalUnsubs.push(unsub);
+}
+function cleanupGlobalInboxSub(){ /* handled by full teardown on logout if needed */ }
+function cleanupTopicSubs(){
+  state.topicUnsubs.forEach(u => u());
+  state.topicUnsubs = [];
+}
+function cleanupChatSubs(){
+  state.chatUnsubs.forEach(u => u());
+  state.chatUnsubs = [];
 }
 
 function unreadCount(){
-  return (state.inbox || []).filter(e => e.lastAuthor !== state.myName && e.lastTs > (e.lastReadTs || 0)).length;
+  if(!state.user) return 0;
+  return (state.threads || []).filter(t => {
+    const lastTs = t.lastTs ? (t.lastTs.toMillis ? t.lastTs.toMillis() : t.lastTs) : 0;
+    const readTs = t.lastReadBy && t.lastReadBy[state.user.uid] ? (t.lastReadBy[state.user.uid].toMillis ? t.lastReadBy[state.user.uid].toMillis() : t.lastReadBy[state.user.uid]) : 0;
+    return t.lastAuthorUid && t.lastAuthorUid !== state.user.uid && lastTs > readTs;
+  }).length;
 }
 
-async function pollInbox(){
-  if(!state.myName) return;
+/* ---------- topics / arguments ---------- */
+async function submitTopic(){
+  if(!requireAuth()) return;
+  if(state.submittingTopic) return;
+  const title = document.getElementById('t-title').value.trim();
+  const desc = document.getElementById('t-desc').value.trim();
+  const category = document.getElementById('t-category').value;
+  const errEl = document.getElementById('t-err');
+  if(!title){ errEl.textContent = 'Give the debate a topic first.'; errEl.style.display = 'block'; return; }
+  state.submittingTopic = true;
+  const btn = document.getElementById('create-topic-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Creating…'; }
   try{
-    const inbox = await raceTimeout(getInbox(state.myName), 2000, state.inbox || []);
-    const changed = JSON.stringify(inbox) !== JSON.stringify(state.inbox || []);
-    state.inbox = inbox;
-    if(changed) render();
-  }catch(e){}
-}
-
-async function goInbox(){
-  const name = await ensureName();
-  if(!name){ askName(() => goInbox()); return; }
-  state.view = 'inbox';
-  stopPolling();
-  render();
-  await pollInbox();
-  render();
-}
-
-async function openChat(threadKey, otherName){
-  state.view = 'chat';
-  state.currentThreadKey = threadKey;
-  state.chatWithName = otherName;
-  state.currentThread = null;
-  state.chatError = false;
-  render();
-  await refreshChat();
-  startPolling(refreshChat);
-}
-
-async function refreshChat(){
-  if(state.view !== 'chat') return;
-  const t = await raceTimeout(getThread(state.currentThreadKey), 3000, null);
-  state.currentThread = t || { participants: [state.myName, state.chatWithName], messages: [] };
-  state.chatError = !t;
-  const msgs = state.currentThread.messages;
-  const last = msgs.length ? msgs[msgs.length - 1] : null;
-  try{
-    await raceTimeout(upsertInboxEntry(state.myName, {
-      threadKey: state.currentThreadKey, otherName: state.chatWithName,
-      lastText: last ? last.text : '', lastAuthor: last ? last.author : state.myName,
-      lastTs: last ? last.ts : Date.now(), lastReadTs: Date.now()
-    }), 1500, null);
-  }catch(e){}
-  render();
-}
-
-async function sendChatMsg(){
-  if(state.submittingMsg) return;
-  const input = document.getElementById('chat-msg');
-  const text = input.value.trim();
-  if(!text) return;
-  const btn = document.getElementById('chat-send-btn');
-  state.submittingMsg = true;
-  if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
-  try{
-    await postMessage(state.currentThreadKey, state.chatWithName, text);
-    input.value = '';
-    await refreshChat();
+    const ref = await fb.addDoc(fb.collection(db, 'topics'), {
+      title, description: desc, category,
+      createdAt: fb.serverTimestamp(),
+      createdBy: state.user.uid, createdByName: state.user.displayName,
+      proCount: 0, conCount: 0
+    });
+    await openTopic(ref.id);
   }catch(e){
-    alert("Couldn't send that message. Try again.");
+    alert("Couldn't create that debate. Try again.");
   }finally{
-    state.submittingMsg = false;
+    state.submittingTopic = false;
   }
 }
 
-function startPolling(fn){
-  stopPolling();
-  state.pollHandle = setInterval(fn, 4000);
-}
-function stopPolling(){
-  if(state.pollHandle){ clearInterval(state.pollHandle); state.pollHandle = null; }
+async function openTopic(id){
+  cleanupTopicSubs();
+  state.currentTopicId = id;
+  state.currentTopic = null;
+  state.currentArgs = [];
+  state.view = 'topic';
+  pushUrl('?topic=' + id);
+  render();
+  const topicUnsub = fb.onSnapshot(fb.doc(db, 'topics', id), d => {
+    state.currentTopic = d.exists() ? { id: d.id, ...d.data() } : null;
+    render();
+  }, err => console.error('topic sub error', err));
+  const argsUnsub = fb.onSnapshot(
+    fb.query(fb.collection(db, 'topics', id, 'arguments'), fb.orderBy('votes', 'desc')),
+    snap => { state.currentArgs = snap.docs.map(d => ({ id: d.id, ...d.data() })); render(); },
+    err => console.error('args sub error', err)
+  );
+  state.topicUnsubs.push(topicUnsub, argsUnsub);
 }
 
-/* ---------- challenge someone to a debate (starts/opens a chat) ---------- */
+async function addArg(side){
+  if(!requireAuth()) return;
+  if(state.submittingArg[side]) return;
+  state.submittingArg[side] = true;
+  const btn = document.getElementById(side + '-submit-btn');
+  try{
+    const inputEl = document.getElementById(side + '-input');
+    const text = inputEl.value.trim();
+    if(!text){ state.submittingArg[side] = false; inputEl.style.borderColor = 'var(--con)'; inputEl.focus(); return; }
+    if(btn){ btn.disabled = true; btn.textContent = 'Posting…'; }
+    await fb.addDoc(fb.collection(db, 'topics', state.currentTopicId, 'arguments'), {
+      side, text, votes: 0, votedBy: [],
+      author: state.user.displayName, authorUid: state.user.uid,
+      createdAt: fb.serverTimestamp()
+    });
+    await fb.updateDoc(fb.doc(db, 'topics', state.currentTopicId), {
+      [side === 'pro' ? 'proCount' : 'conCount']: fb.increment(1)
+    });
+    inputEl.value = '';
+  }catch(e){
+    alert("Couldn't post that argument. Try again.");
+  }finally{
+    state.submittingArg[side] = false;
+    render();
+  }
+}
+
+async function vote(argId){
+  if(!requireAuth()) return;
+  const arg = state.currentArgs.find(a => a.id === argId);
+  if(!arg) return;
+  const uid = state.user.uid;
+  const voted = (arg.votedBy || []).includes(uid);
+  const ref = fb.doc(db, 'topics', state.currentTopicId, 'arguments', argId);
+  try{
+    if(voted){
+      await fb.updateDoc(ref, { votes: fb.increment(-1), votedBy: fb.arrayRemove(uid) });
+    } else {
+      await fb.updateDoc(ref, { votes: fb.increment(1), votedBy: fb.arrayUnion(uid) });
+    }
+  }catch(e){ /* ignore transient errors, snapshot will resync */ }
+}
+
+function shareTopic(){
+  const url = location.origin + location.pathname + '?topic=' + state.currentTopicId;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(() => showToast('Link copied to clipboard')).catch(() => showToast(url));
+  } else {
+    showToast(url);
+  }
+}
+
+/* ---------- messaging ---------- */
+function threadIdFor(uidA, uidB){ return [uidA, uidB].sort().join('_'); }
+
+async function ensureThread(otherUid, otherName){
+  const tid = threadIdFor(state.user.uid, otherUid);
+  const ref = fb.doc(db, 'threads', tid);
+  const snap = await fb.getDoc(ref);
+  if(!snap.exists()){
+    await fb.setDoc(ref, {
+      participantUids: [state.user.uid, otherUid],
+      participantNames: { [state.user.uid]: state.user.displayName, [otherUid]: otherName },
+      lastText: '', lastAuthorUid: '', lastTs: fb.serverTimestamp(), createdAt: fb.serverTimestamp()
+    });
+  }
+  return tid;
+}
+
+async function sendThreadMessage(tid, otherUid, otherName, text){
+  await fb.addDoc(fb.collection(db, 'threads', tid, 'messages'), {
+    author: state.user.displayName, authorUid: state.user.uid, text, ts: fb.serverTimestamp()
+  });
+  await fb.setDoc(fb.doc(db, 'threads', tid), {
+    participantUids: [state.user.uid, otherUid],
+    participantNames: { [state.user.uid]: state.user.displayName, [otherUid]: otherName },
+    lastText: text, lastAuthorUid: state.user.uid, lastTs: fb.serverTimestamp(),
+    ['lastReadBy.' + state.user.uid]: fb.serverTimestamp()
+  }, { merge: true });
+}
+
 async function challengeAuthor(argId){
-  const name = await ensureName();
-  if(!name){ askName(() => challengeAuthor(argId)); return; }
+  if(!requireAuth()) return;
   const arg = (state.currentArgs || []).find(a => a.id === argId);
   if(!arg) return;
-  if(arg.author === name){ alert("That's your own argument."); return; }
-  const topic = state.topics.find(t => t.id === state.currentTopicId);
+  if(arg.authorUid === state.user.uid){ alert("That's your own argument."); return; }
   const mySide = arg.side === 'pro' ? 'con' : 'pro';
-  const line = `Want to debate "${topic.title}" one-on-one? I'll argue ${mySide}.`;
-  const threadKey = threadKeyFor(name, arg.author);
-  await postMessage(threadKey, arg.author, line);
-  await openChat(threadKey, arg.author);
+  const line = `Want to debate "${state.currentTopic.title}" one-on-one? I'll argue ${mySide}.`;
+  const tid = await ensureThread(arg.authorUid, arg.author);
+  await sendThreadMessage(tid, arg.authorUid, arg.author, line);
+  await openChat(tid, arg.authorUid, arg.author);
 }
 
 async function startChallenge(){
-  const name = await ensureName();
-  if(!name){ askName(() => startChallenge()); return; }
-  const topic = state.topics.find(t => t.id === state.currentTopicId);
+  if(!requireAuth()) return;
+  const topic = state.currentTopic;
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   backdrop.innerHTML = `<div class="modal">
     <h3>Start a private debate</h3>
-    <p style="font-size:13.5px;color:var(--text-soft);margin:0 0 12px;">Message someone directly about "${esc(topic.title)}".</p>
+    <p style="font-size:13.5px;color:var(--text-soft);margin:0 0 12px;">Message someone directly about "${esc(topic.title)}". Enter their exact display name.</p>
     <label for="challenge-name">Their name</label>
     <input type="text" id="challenge-name" placeholder="e.g. Priya" style="margin-bottom:6px;">
     <label style="margin-top:10px;">Your side</label>
@@ -521,62 +615,190 @@ async function startChallenge(){
       <button class="pro-c" id="choose-pro">Pro</button>
       <button class="con-c" id="choose-con">Con</button>
     </div>
-    <div id="challenge-err" class="err" style="display:none;">Enter their name first.</div>
+    <div id="challenge-err" class="err" style="display:none;"></div>
     <div class="modal-actions"><button class="btn ghost" id="challenge-cancel">Cancel</button></div>
   </div>`;
   document.body.appendChild(backdrop);
-  const close = () => document.body.removeChild(backdrop);
+  const close = () => { if(document.body.contains(backdrop)) document.body.removeChild(backdrop); };
   backdrop.querySelector('#challenge-cancel').onclick = close;
   const go = async (side) => {
     const otherName = backdrop.querySelector('#challenge-name').value.trim();
     const errEl = backdrop.querySelector('#challenge-err');
     if(!otherName){ errEl.textContent = 'Enter their name first.'; errEl.style.display = 'block'; return; }
-    if(otherName.toLowerCase() === name.toLowerCase()){ errEl.textContent = "That's you."; errEl.style.display = 'block'; return; }
-    close();
-    const line = `Want to debate "${topic.title}" one-on-one? I'll argue ${side}.`;
-    const threadKey = threadKeyFor(name, otherName);
-    await postMessage(threadKey, otherName, line);
-    await openChat(threadKey, otherName);
+    if(otherName === state.user.displayName){ errEl.textContent = "That's you."; errEl.style.display = 'block'; return; }
+    errEl.style.display = 'none';
+    try{
+      const q = fb.query(fb.collection(db, 'users'), fb.where('displayName', '==', otherName));
+      const snap = await fb.getDocs(q);
+      if(snap.empty){ errEl.textContent = 'No user found with that exact name.'; errEl.style.display = 'block'; return; }
+      const otherUid = snap.docs[0].id;
+      close();
+      const line = `Want to debate "${topic.title}" one-on-one? I'll argue ${side}.`;
+      const tid = await ensureThread(otherUid, otherName);
+      await sendThreadMessage(tid, otherUid, otherName, line);
+      await openChat(tid, otherUid, otherName);
+    }catch(e){
+      errEl.textContent = "Couldn't send that. Try again."; errEl.style.display = 'block';
+    }
   };
   backdrop.querySelector('#choose-pro').onclick = () => go('pro');
   backdrop.querySelector('#choose-con').onclick = () => go('con');
 }
 
-/* ---------- rendering ---------- */
+async function goInbox(){
+  if(!requireAuth()) return;
+  cleanupChatSubs();
+  state.view = 'inbox';
+  pushUrl('');
+  render();
+}
+
+async function openChat(tid, otherUid, otherName){
+  cleanupChatSubs();
+  state.view = 'chat';
+  state.currentThreadId = tid;
+  state.chatWithUid = otherUid;
+  state.chatWithName = otherName;
+  state.currentThread = null;
+  state.chatMessages = [];
+  pushUrl('');
+  render();
+  const threadUnsub = fb.onSnapshot(fb.doc(db, 'threads', tid), d => {
+    state.currentThread = d.exists() ? { id: d.id, ...d.data() } : null;
+    render();
+  }, err => console.error('thread sub error', err));
+  const msgsUnsub = fb.onSnapshot(
+    fb.query(fb.collection(db, 'threads', tid, 'messages'), fb.orderBy('ts', 'asc')),
+    snap => { state.chatMessages = snap.docs.map(d => ({ id: d.id, ...d.data() })); render(); },
+    err => console.error('messages sub error', err)
+  );
+  state.chatUnsubs.push(threadUnsub, msgsUnsub);
+  try{
+    await fb.updateDoc(fb.doc(db, 'threads', tid), { ['lastReadBy.' + state.user.uid]: fb.serverTimestamp() });
+  }catch(e){}
+}
+
+async function sendChatMsg(){
+  if(state.submittingMsg) return;
+  state.submittingMsg = true;
+  const input = document.getElementById('chat-msg');
+  const btn = document.getElementById('chat-send-btn');
+  try{
+    const text = input.value.trim();
+    if(!text){ state.submittingMsg = false; return; }
+    if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+    await sendThreadMessage(state.currentThreadId, state.chatWithUid, state.chatWithName, text);
+    input.value = '';
+  }catch(e){
+    alert("Couldn't send that message. Try again.");
+  }finally{
+    state.submittingMsg = false;
+    render();
+  }
+}
+
+/* ---------- navigation ---------- */
+function goList(){
+  cleanupTopicSubs();
+  cleanupChatSubs();
+  state.view = 'list'; state.currentTopicId = null; state.currentTopic = null; state.currentArgs = [];
+  pushUrl('');
+  render();
+}
+function goNew(){
+  if(!requireAuth()) return;
+  cleanupTopicSubs();
+  state.view = 'new';
+  pushUrl('');
+  render();
+}
+
+/* ================== RENDERING ================== */
 function render(){
   const app = document.getElementById('app');
-  if(state.view === 'list') return renderList(app);
-  if(state.view === 'new') return renderNew(app);
-  if(state.view === 'topic') return renderTopic(app);
-  if(state.view === 'inbox') return renderInbox(app);
-  if(state.view === 'chat') return renderChat(app);
+  if(NEEDS_SETUP) return renderSetupScreen(app);
+  if(!state.user && (state.view === 'chat' || state.view === 'inbox' || state.view === 'new')){
+    state.view = 'list';
+  }
+  if(state.view === 'list') renderList(app);
+  else if(state.view === 'new') renderNew(app);
+  else if(state.view === 'topic') renderTopic(app);
+  else if(state.view === 'inbox') renderInbox(app);
+  else if(state.view === 'chat') renderChat(app);
+  renderToast();
+}
+
+function renderToast(){
+  let el = document.getElementById('toast-el');
+  if(el) el.remove();
+  if(state.toastMsg){
+    el = document.createElement('div');
+    el.id = 'toast-el';
+    el.className = 'toast';
+    el.textContent = state.toastMsg;
+    document.body.appendChild(el);
+  }
+}
+
+function renderSetupScreen(app){
+  app.innerHTML = `<div class="setup-screen">
+    <h1>Almost there — connect Firebase</h1>
+    <p>This app needs a free Firebase project to store debates, arguments, and messages so everyone who visits sees the same data. Takes about three minutes:</p>
+    <ol>
+      <li>Go to <code>console.firebase.google.com</code> and create a project (free, no card needed).</li>
+      <li>Click the <code>&lt;/&gt;</code> web app icon to register a web app — it gives you a config object.</li>
+      <li>In your project, go to <strong>Authentication → Sign-in method</strong> and enable <strong>Email/Password</strong>.</li>
+      <li>Go to <strong>Firestore Database → Create database</strong> (production mode is fine — security rules are in the README).</li>
+      <li>Paste your config into <code>firebaseConfig</code> near the top of <code>index.html</code>, in place of the placeholder values.</li>
+      <li>Push the change — your site redeploys automatically and this screen disappears.</li>
+    </ol>
+    <p>Your config object looks like this — every value here needs to be replaced with your real project's values:</p>
+    <pre>const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};</pre>
+  </div>`;
 }
 
 function renderHeader(){
   const count = unreadCount();
+  const authSection = state.user
+    ? `<div class="auth-nav">
+        <span class="user-chip">hey, <strong>${esc(state.user.displayName || 'you')}</strong></span>
+        <button class="messages-nav ${state.view==='inbox'||state.view==='chat' ? 'active' : ''}" onclick="goInbox()">messages${count ? ` <span class="badge-dot">${count}</span>` : ''}</button>
+        <button class="auth-btn" onclick="logOut()">Log out</button>
+      </div>`
+    : `<div class="auth-nav">
+        <button class="auth-btn" onclick="openAuthModal('login')">Log in</button>
+        <button class="auth-btn filled" onclick="openAuthModal('signup')">Sign up</button>
+      </div>`;
   return `<header class="site">
     <div class="wordmark" onclick="goList()"><span>Rebuttal</span><span class="bolt">⚡</span></div>
     <div class="nav-right">
       <div class="tag">pick a side. make your case.</div>
-      <button class="messages-nav ${state.view==='inbox'||state.view==='chat' ? 'active' : ''}" onclick="goInbox()">
-        messages${count ? ` <span class="badge-dot">${count}</span>` : ''}
-      </button>
+      ${authSection}
     </div>
   </header>`;
 }
 
 function renderList(app){
-  const topics = state.topics || [];
-  let rows = '';
-  if(topics.length === 0){
-    rows = `<div class="empty"><h3>No debates yet</h3><p>Start the first one.</p></div>`;
+  const filtered = state.categoryFilter === 'all' ? state.topics : state.topics.filter(t => t.category === state.categoryFilter);
+  let rows;
+  if(!state.topics.length){
+    rows = `<div class="empty"><h3>No debates yet</h3><p>Be the first to start one — everyone who visits this site will see it.</p></div>`;
+  } else if(!filtered.length){
+    rows = `<div class="empty"><h3>Nothing in this category yet</h3><p>Try another filter, or start one here.</p></div>`;
   } else {
-    const sorted = [...topics].sort((a,b)=>b.createdAt-a.createdAt);
-    rows = sorted.map(t=>{
+    rows = filtered.map(t => {
       const total = (t.proCount||0) + (t.conCount||0);
       const proPct = total ? Math.round((t.proCount/total)*100) : 50;
       return `<div class="row" onclick="openTopic('${t.id}')">
         <div>
+          <div class="category-badge">${esc(t.category || 'Other')}</div>
           <p class="row-title">${esc(t.title)}</p>
           ${t.description ? `<p class="row-desc">${esc(t.description)}</p>` : ''}
         </div>
@@ -587,22 +809,30 @@ function renderList(app){
       </div>`;
     }).join('');
   }
+  const chips = ['all', ...CATEGORIES].map(c => {
+    const label = c === 'all' ? 'All' : c;
+    return `<button class="category-chip ${state.categoryFilter===c?'active':''}" onclick="setCategoryFilter('${c}')">${label}</button>`;
+  }).join('');
   app.innerHTML = renderHeader() + `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:10px;">
-      <button class="btn ghost" onclick="loadExamples()">Load example debates</button>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
       <button class="btn primary" onclick="goNew()">+ new debate</button>
     </div>
+    <div class="category-filters">${chips}</div>
     ${rows}
   `;
 }
+function setCategoryFilter(c){ state.categoryFilter = c; render(); }
 
 function renderNew(app){
+  const options = CATEGORIES.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
   app.innerHTML = renderHeader() + `
     <button class="back" onclick="goList()">&larr; all debates</button>
     <div class="panel">
       <h2>Start a debate</h2>
       <label for="t-title">Topic</label>
       <input type="text" id="t-title" placeholder="e.g. Remote work is better than office work">
+      <label for="t-category">Category</label>
+      <select id="t-category">${options}</select>
       <label for="t-desc">Context (optional)</label>
       <textarea id="t-desc" rows="3" placeholder="A sentence or two framing the debate."></textarea>
       <div id="t-err" class="err" style="display:none;"></div>
@@ -614,68 +844,25 @@ function renderNew(app){
   `;
 }
 
-async function submitTopic(){
-  if(state.submittingTopic) return;
-  const title = document.getElementById('t-title').value.trim();
-  const desc = document.getElementById('t-desc').value.trim();
-  const errEl = document.getElementById('t-err');
-  if(!title){
-    errEl.textContent = 'Give the debate a topic first.';
-    errEl.style.display = 'block';
-    return;
-  }
-  const btn = document.getElementById('create-topic-btn');
-  state.submittingTopic = true;
-  if(btn){ btn.disabled = true; btn.textContent = 'Creating…'; }
-  try{
-    const topic = { id: uid(), title, description: desc, createdAt: Date.now(), proCount:0, conCount:0 };
-    state.topics.push(topic);
-    await saveTopics();
-    await openTopic(topic.id);
-  }catch(e){
-    alert("Couldn't create that debate. Try again.");
-  }finally{
-    state.submittingTopic = false;
-  }
-}
-
-async function openTopic(id){
-  state.currentTopicId = id;
-  state.view = 'topic';
-  state.currentArgs = null;
-  state.argsError = false;
-  stopPolling();
-  render();
-  const args = await raceTimeout(loadArgs(id), 4000, null);
-  if(args === null){
-    state.currentArgs = [];
-    state.argsError = true;
-  } else {
-    state.currentArgs = args;
-  }
-  render();
-}
-
 function renderTopic(app){
-  const topic = (state.topics||[]).find(t=>t.id===state.currentTopicId);
-  if(!topic){ app.innerHTML = renderHeader() + `<div class="empty"><h3>Debate not found</h3></div>`; return; }
-  if(state.currentArgs === null){
-    app.innerHTML = renderHeader() + `<div class="loading">loading arguments…</div>`;
+  if(!state.currentTopic){
+    app.innerHTML = renderHeader() + `<div class="loading">loading debate…</div>`;
     return;
   }
+  const topic = state.currentTopic;
   const args = state.currentArgs;
-  const pro = args.filter(a=>a.side==='pro').sort((a,b)=>b.votes-a.votes);
-  const con = args.filter(a=>a.side==='con').sort((a,b)=>b.votes-a.votes);
+  const pro = args.filter(a => a.side === 'pro');
+  const con = args.filter(a => a.side === 'con');
 
   const cardHtml = (a) => {
-    const voted = !!state.voted[a.id];
-    const canChallenge = a.author && a.author !== state.myName;
+    const voted = state.user && (a.votedBy || []).includes(state.user.uid);
+    const canChallenge = a.authorUid && (!state.user || a.authorUid !== state.user.uid);
     return `<div class="arg-card">
       <p class="arg-text">${esc(a.text)}</p>
       <p class="arg-meta">${a.author ? esc(a.author) : 'anonymous'} &middot; ${timeAgo(a.createdAt)}</p>
       <div class="arg-foot">
         <button class="vote-btn ${voted?'voted':''}" onclick="vote('${a.id}')">
-          <span>${voted ? '&#9650;' : '&#9651;'}</span><span>${a.votes}</span>
+          <span>${voted ? '&#9650;' : '&#9651;'}</span><span>${a.votes||0}</span>
         </button>
         ${canChallenge ? `<button class="debate-btn" onclick="challengeAuthor('${a.id}')">Debate &rarr;</button>` : ''}
       </div>
@@ -684,11 +871,14 @@ function renderTopic(app){
 
   app.innerHTML = renderHeader() + `
     <button class="back" onclick="goList()">&larr; all debates</button>
-    <div class="topic-head">
-      <h1>${esc(topic.title)}</h1>
-      ${topic.description ? `<p>${esc(topic.description)}</p>` : ''}
+    <div class="topic-head-row">
+      <div class="topic-head">
+        <div class="category-badge">${esc(topic.category || 'Other')}</div>
+        <h1>${esc(topic.title)}</h1>
+        ${topic.description ? `<p>${esc(topic.description)}</p>` : ''}
+      </div>
+      <button class="share-btn" onclick="shareTopic()">Share &#8599;</button>
     </div>
-    ${state.argsError ? `<div class="banner"><span>Couldn't load arguments just now — showing what's cached.</span><button class="btn ghost" onclick="openTopic('${topic.id}')">Retry</button></div>` : ''}
     <div class="tally">
       <div class="side pro"><div class="n">${pro.length}</div><div class="l">pro arguments</div></div>
       <div class="side con"><div class="n">${con.length}</div><div class="l">con arguments</div></div>
@@ -717,66 +907,31 @@ function renderTopic(app){
   `;
 }
 
-async function addArg(side){
-  if(state.submittingArg[side]) return;
-  state.submittingArg[side] = true;
-  try{
-    const name = await ensureName();
-    if(!name){ state.submittingArg[side] = false; askName(() => addArg(side)); return; }
-    const inputEl = document.getElementById(side+'-input');
-    const text = inputEl.value.trim();
-    if(!text) { state.submittingArg[side] = false; inputEl.style.borderColor = 'var(--con)'; inputEl.focus(); return; }
-    const btn = document.getElementById(side+'-submit-btn');
-    if(btn){ btn.disabled = true; btn.textContent = 'Posting…'; }
-    const newArg = { id: uid(), side, text, votes: 0, author: name, createdAt: Date.now() };
-    state.currentArgs.push(newArg);
-    await saveArgs(state.currentTopicId, state.currentArgs);
-    const topic = state.topics.find(t=>t.id===state.currentTopicId);
-    if(topic){
-      topic.proCount = state.currentArgs.filter(a=>a.side==='pro').length;
-      topic.conCount = state.currentArgs.filter(a=>a.side==='con').length;
-      await saveTopics();
-    }
-  }catch(e){
-    alert("Couldn't post that argument. Try again.");
-  }finally{
-    state.submittingArg[side] = false;
-  }
-  render();
-}
-
-async function vote(argId){
-  const arg = state.currentArgs.find(a=>a.id===argId);
-  if(!arg) return;
-  if(state.voted[argId]){
-    arg.votes = Math.max(0, arg.votes-1);
-    delete state.voted[argId];
-  } else {
-    arg.votes += 1;
-    state.voted[argId] = true;
-  }
-  render();
-  await saveArgs(state.currentTopicId, state.currentArgs);
-}
-
-/* ---------- inbox / chat views ---------- */
 function renderInbox(app){
-  const inbox = [...(state.inbox || [])].sort((a,b)=>b.lastTs-a.lastTs);
+  const threads = [...(state.threads || [])].sort((a,b) => {
+    const at = a.lastTs ? (a.lastTs.toMillis ? a.lastTs.toMillis() : a.lastTs) : 0;
+    const bt = b.lastTs ? (b.lastTs.toMillis ? b.lastTs.toMillis() : b.lastTs) : 0;
+    return bt - at;
+  });
   let rows;
-  if(!inbox.length){
+  if(!threads.length){
     rows = `<div class="empty"><h3>No conversations yet</h3><p>Hit "Debate" under someone's argument, or "Message someone about this" on any topic.</p></div>`;
   } else {
-    rows = inbox.map(e => {
-      const unread = e.lastAuthor !== state.myName && e.lastTs > (e.lastReadTs||0);
-      const av = avatarStyle(e.otherName);
-      return `<div class="thread-row" onclick="openChat('${e.threadKey}', '${esc(e.otherName).replace(/'/g,"&#39;")}')">
-        <div class="avatar" style="background:${av.bg};color:${av.text};">${esc(initials(e.otherName))}</div>
+    rows = threads.map(t => {
+      const otherUid = (t.participantUids || []).find(u => u !== state.user.uid);
+      const otherName = (t.participantNames && t.participantNames[otherUid]) || 'someone';
+      const lastTs = t.lastTs ? (t.lastTs.toMillis ? t.lastTs.toMillis() : t.lastTs) : 0;
+      const readTs = t.lastReadBy && t.lastReadBy[state.user.uid] ? (t.lastReadBy[state.user.uid].toMillis ? t.lastReadBy[state.user.uid].toMillis() : t.lastReadBy[state.user.uid]) : 0;
+      const unread = t.lastAuthorUid && t.lastAuthorUid !== state.user.uid && lastTs > readTs;
+      const av = avatarStyle(otherName);
+      return `<div class="thread-row" onclick="openChat('${t.id}', '${otherUid}', '${esc(otherName).replace(/'/g,"&#39;")}')">
+        <div class="avatar" style="background:${av.bg};color:${av.text};">${esc(initials(otherName))}</div>
         <div class="thread-info">
           <div class="thread-top">
-            <p class="thread-name">${esc(e.otherName)}</p>
-            <span class="thread-time">${timeAgo(e.lastTs)}</span>
+            <p class="thread-name">${esc(otherName)}</p>
+            <span class="thread-time">${timeAgo(t.lastTs)}</span>
           </div>
-          <p class="thread-preview ${unread?'unread':''}">${e.lastAuthor===state.myName ? 'you: ' : ''}${esc(e.lastText)}</p>
+          <p class="thread-preview ${unread?'unread':''}">${t.lastAuthorUid===state.user.uid ? 'you: ' : ''}${esc(t.lastText || '')}</p>
         </div>
         ${unread ? '<div class="unread-dot"></div>' : ''}
       </div>`;
@@ -784,10 +939,7 @@ function renderInbox(app){
   }
   app.innerHTML = renderHeader() + `
     <button class="back" onclick="goList()">&larr; all debates</button>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 4px;">
-      <h2 style="font-family:'Fraunces',serif;font-weight:500;font-size:20px;margin:0;">Messages</h2>
-      <button class="btn ghost" style="font-size:12.5px;padding:6px 12px;" onclick="goInbox()">Refresh</button>
-    </div>
+    <h2 style="font-family:'Fraunces',serif;font-weight:500;font-size:20px;margin:0 0 4px;">Messages</h2>
     ${rows}
   `;
 }
@@ -799,9 +951,9 @@ function renderChat(app){
     app.innerHTML = renderHeader() + `<div class="loading">loading conversation…</div>`;
     return;
   }
-  const msgsHtml = t.messages.length
-    ? t.messages.map(m => {
-        const mine = m.author === state.myName;
+  const msgsHtml = state.chatMessages.length
+    ? state.chatMessages.map(m => {
+        const mine = m.authorUid === state.user.uid;
         return `<div class="msg ${mine?'mine':'theirs'}">${esc(m.text)}<div class="m-time">${timeAgo(m.ts)}</div></div>`;
       }).join('')
     : `<div class="thread-empty">No messages yet. Say hello.</div>`;
@@ -811,9 +963,7 @@ function renderChat(app){
     <div class="chat-head">
       <div class="avatar" style="background:${av.bg};color:${av.text};">${esc(initials(state.chatWithName))}</div>
       <h1>${esc(state.chatWithName)}</h1>
-      <button class="btn ghost" style="font-size:12px;padding:5px 10px;" onclick="refreshChat()">Refresh</button>
     </div>
-    ${state.chatError ? `<div class="banner"><span>Having trouble syncing this conversation.</span><button class="btn ghost" onclick="refreshChat()">Retry</button></div>` : ''}
     <div class="thread">${msgsHtml}</div>
     <div class="msg-input-row">
       <textarea id="chat-msg" placeholder="Write a message…"></textarea>
@@ -822,72 +972,31 @@ function renderChat(app){
   `;
 }
 
-/* ---------- example data ---------- */
-async function loadExamples(){
-  const now = Date.now();
-  const examples = [
-    {
-      title: 'Cats are better pets than dogs',
-      description: 'The eternal household debate.',
-      args: [
-        { side:'pro', author:'Maya', text:'Cats are low-maintenance — no daily walks required, and they do fine home alone for a full workday.', votes:5 },
-        { side:'pro', author:'Devon', text:'Cats groom themselves, so you skip the bathing battle entirely.', votes:2 },
-        { side:'con', author:'Priya', text:'Dogs offer real loyalty and are far more trainable for tasks like fetching or guarding.', votes:4 },
-        { side:'con', author:'Sam', text:'Dogs get you outside and moving every day, which is genuinely good for your own health too.', votes:3 }
-      ]
-    },
-    {
-      title: 'Remote work is better than office work',
-      description: 'Where should the 9-to-5 actually happen?',
-      args: [
-        { side:'pro', author:'Jordan', text:'No commute means more time for family, hobbies, or just sleep.', votes:7 },
-        { side:'pro', author:'Lena', text:'People are demonstrably more productive without constant office interruptions.', votes:3 },
-        { side:'con', author:'Chris', text:'In-person collaboration sparks ideas that a Slack thread never will.', votes:6 },
-        { side:'con', author:'Aisha', text:'New hires learn company culture far faster sitting next to experienced teammates.', votes:2 }
-      ]
-    },
-    {
-      title: 'Pineapple belongs on pizza',
-      description: 'A lighter one to warm up on.',
-      args: [
-        { side:'pro', author:'Noah', text:'Sweet and salty is a classic pairing — pineapple just applies it to pizza.', votes:8 },
-        { side:'con', author:'Grace', text:"Pizza is a savory dish; the fruit undermines the whole flavor profile.", votes:9 }
-      ]
-    }
-  ];
-  for(const ex of examples){
-    const topicId = uid();
-    const topicArgs = ex.args.map((a, i) => ({
-      id: uid(), side: a.side, text: a.text, votes: a.votes, author: a.author,
-      createdAt: now - (ex.args.length - i) * 3600000
-    }));
-    const topic = {
-      id: topicId, title: ex.title, description: ex.description,
-      createdAt: now - Math.floor(Math.random()*5) * 86400000,
-      proCount: topicArgs.filter(a=>a.side==='pro').length,
-      conCount: topicArgs.filter(a=>a.side==='con').length
-    };
-    state.topics.push(topic);
-    await saveArgs(topicId, topicArgs);
-  }
-  await saveTopics();
+/* ---------- wire up window globals for inline onclick handlers ---------- */
+Object.assign(window, {
+  goList, goNew, goInbox, openTopic, openChat, submitTopic, addArg, vote,
+  shareTopic, challengeAuthor, startChallenge, sendChatMsg, setCategoryFilter,
+  openAuthModal, logOut
+});
+
+/* ---------- init ---------- */
+window.addEventListener('popstate', () => {
+  const id = new URLSearchParams(location.search).get('topic');
+  if(id) openTopic(id); else goList();
+});
+
+if(NEEDS_SETUP){
   render();
-}
-
-function goList(){ state.view='list'; state.currentTopicId=null; state.currentArgs=null; stopPolling(); render(); }
-function goNew(){ state.view='new'; stopPolling(); render(); }
-
-(async function init(){
-  try{
-    await Promise.all([ensureName(), loadTopics()]);
-    await pollInbox();
-  }catch(e){
-    if(!state.topics) state.topics = [];
-  }finally{
+} else {
+  fb.onAuthStateChanged(auth, (user) => {
+    state.user = user ? { uid: user.uid, displayName: user.displayName, email: user.email } : null;
+    subscribeInbox();
     render();
-    setInterval(pollInbox, 6000);
-  }
-})();
+  });
+  subscribeTopics();
+  const initialId = new URLSearchParams(location.search).get('topic');
+  if(initialId) openTopic(initialId); else render();
+}
 </script>
 </body>
 </html>
