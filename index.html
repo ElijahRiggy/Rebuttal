@@ -360,7 +360,8 @@ function friendlyAuthError(code){
     'auth/wrong-password': 'Wrong password.',
     'auth/invalid-credential': 'Email or password is incorrect.',
     'auth/user-not-found': 'No account with that email.',
-    'auth/too-many-requests': 'Too many attempts — wait a bit and try again.'
+    'auth/too-many-requests': 'Too many attempts — wait a bit and try again.',
+    'auth/missing-email': 'Enter your email first.'
   };
   return map[code] || 'Something went wrong. Try again.';
 }
@@ -376,7 +377,9 @@ function openAuthModal(mode){
     <input type="text" id="auth-email" placeholder="you@example.com" style="margin-bottom:12px;">
     <label for="auth-pass">Password</label>
     <input type="text" id="auth-pass" placeholder="${isSignup ? 'At least 6 characters' : 'Your password'}" style="margin-bottom:6px;">
+    ${!isSignup ? `<button id="auth-forgot" style="background:none;border:none;padding:0;margin:0 0 6px;font-size:12.5px;color:var(--text-mute);cursor:pointer;text-decoration:underline;">Forgot password?</button>` : ''}
     <div id="auth-err" class="err" style="display:none;"></div>
+    <div id="auth-info" style="font-size:12.5px;color:var(--pro);margin:-10px 0 14px;display:none;"></div>
     <div class="modal-actions">
       <button class="btn ghost" id="auth-switch">${isSignup ? 'Log in instead' : 'Create account instead'}</button>
       <button class="btn primary" id="auth-submit">${isSignup ? 'Sign up' : 'Log in'}</button>
@@ -385,6 +388,31 @@ function openAuthModal(mode){
   document.body.appendChild(backdrop);
   const close = () => { if(document.body.contains(backdrop)) document.body.removeChild(backdrop); };
   backdrop.querySelector('#auth-switch').onclick = () => { close(); openAuthModal(isSignup ? 'login' : 'signup'); };
+  if(!isSignup){
+    backdrop.querySelector('#auth-forgot').onclick = async () => {
+      const email = backdrop.querySelector('#auth-email').value.trim();
+      const errEl = backdrop.querySelector('#auth-err');
+      const infoEl = backdrop.querySelector('#auth-info');
+      errEl.style.display = 'none';
+      if(!email){
+        errEl.textContent = 'Enter your email above first, then click "Forgot password?" again.';
+        errEl.style.display = 'block';
+        return;
+      }
+      const forgotBtn = backdrop.querySelector('#auth-forgot');
+      forgotBtn.disabled = true;
+      try{
+        await fb.sendPasswordResetEmail(auth, email);
+        infoEl.textContent = `Reset link sent to ${email} — check your inbox (and spam folder).`;
+        infoEl.style.display = 'block';
+      }catch(e){
+        errEl.textContent = friendlyAuthError(e.code);
+        errEl.style.display = 'block';
+      }finally{
+        forgotBtn.disabled = false;
+      }
+    };
+  }
   backdrop.querySelector('#auth-submit').onclick = async () => {
     if(state.submittingAuth) return;
     const email = backdrop.querySelector('#auth-email').value.trim();
