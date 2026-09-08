@@ -292,6 +292,7 @@
     width:46px;height:46px;
   }
   .avatar-lg{width:52px;height:52px;font-size:19px;}
+  .avatar-xs{width:26px;height:26px;font-size:11px;}
   .avatar-sm{width:28px;height:28px;font-size:11px;flex-shrink:0;}
   .avatar-sm-spacer{width:28px;flex-shrink:0;}
   .thread-info{flex:1;min-width:0;}
@@ -341,6 +342,41 @@
   .photo-edit-row{display:flex;gap:20px;align-items:center;margin-bottom:22px;flex-wrap:wrap;}
   .photo-edit-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
   .photo-hint{width:100%;font-size:12px;color:var(--ink-mute);margin:2px 0 0;}
+
+  /* User menu dropdown */
+  .user-menu{position:relative;}
+  .user-menu-trigger{
+    display:flex;align-items:center;gap:8px;background:var(--surface-sunken);border:none;border-radius:22px;
+    padding:5px 14px 5px 5px;cursor:pointer;font-family:'Public Sans',sans-serif;
+  }
+  .user-menu-trigger:hover{background:var(--hairline-strong);}
+  .user-menu-name{font-size:14px;font-weight:600;color:var(--ink);}
+  .user-menu-trigger .chev{color:var(--ink-mute);flex-shrink:0;}
+  .user-menu-dropdown{
+    position:absolute;top:calc(100% + 8px);right:0;background:var(--surface);border:1px solid var(--hairline);
+    border-radius:14px;box-shadow:var(--shadow-lg);padding:8px;min-width:180px;z-index:40;
+    animation:modalIn .15s cubic-bezier(.2,.8,.2,1);
+  }
+  .user-menu-dropdown button{
+    display:block;width:100%;text-align:left;background:none;border:none;padding:10px 12px;border-radius:9px;
+    font-family:'Public Sans',sans-serif;font-size:14px;font-weight:500;color:var(--ink);cursor:pointer;
+  }
+  .user-menu-dropdown button:hover{background:var(--surface-sunken);}
+  .user-menu-divider{height:1px;background:var(--hairline);margin:6px 4px;}
+
+  /* Chip-select (political spectrum etc) */
+  .chip-select{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;}
+  .option-chip{font-family:'Public Sans',sans-serif;font-size:13px;font-weight:600;color:var(--ink-soft);background:var(--surface-sunken);border:1.5px solid transparent;border-radius:18px;padding:8px 15px;cursor:pointer;transition:.12s;}
+  .option-chip:hover{border-color:var(--hairline-strong);}
+  .option-chip.active{background:var(--ink);color:#fff;}
+
+  /* Edit-profile form sections */
+  .form-section{margin-bottom:28px;padding-bottom:26px;border-bottom:1px solid var(--hairline);}
+  .form-section:last-of-type{border-bottom:none;padding-bottom:0;margin-bottom:24px;}
+  .form-section-title{font-family:'Manrope',sans-serif;font-size:15px;font-weight:800;margin:0 0 16px;letter-spacing:-0.005em;}
+  .form-section-sub{font-family:'Public Sans',sans-serif;font-size:12px;font-weight:500;color:var(--ink-mute);}
+  .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:560px){ .form-grid-2{grid-template-columns:1fr;} }
   .thread-empty{text-align:center;color:var(--ink-mute);font-size:14.5px;padding:36px 0;}
   .msg-input-row{display:flex;gap:10px;}
   .msg-input-row textarea{flex:1;min-height:50px;margin:0;}
@@ -398,7 +434,7 @@ const state = {
   threads: [], currentThreadId: null, currentThread: null, chatWithUid: null, chatWithName: null, chatMessages: [],
   chatAutoFocusPending: false, lastRenderedMsgCount: -1, inboxHasLoadedOnce: false,
   viewingProfileUid: null, viewingProfile: null, viewingProfileLoaded: false, viewingProfileDebates: [],
-  submittingProfile: false, pendingPhotoDataUrl: null,
+  submittingProfile: false, pendingPhotoDataUrl: null, myProfile: null, userMenuOpen: false, selectedPolitical: null,
   submittingTopic: false, submittingArg: { pro: false, con: false }, submittingMsg: false, submittingAuth: false,
   topicUnsubs: [], chatUnsubs: [], globalUnsubs: [],
   toastMsg: null, toastTimer: null
@@ -950,7 +986,24 @@ function goEditProfile(){
   cleanupChatSubs();
   state.view = 'edit-profile';
   state.pendingPhotoDataUrl = null;
+  const p = (state.viewingProfile && state.viewingProfileUid === state.user.uid) ? state.viewingProfile : (state.myProfile || {});
+  state.selectedPolitical = p.political || 'Prefer not to say';
   pushUrl('');
+  render();
+}
+
+function selectPolitical(val, btnEl){
+  state.selectedPolitical = val;
+  const group = document.getElementById('p-political-chips');
+  if(group){
+    Array.from(group.children).forEach(c => c.classList.remove('active'));
+    if(btnEl) btnEl.classList.add('active');
+  }
+}
+
+function toggleUserMenu(e){
+  if(e) e.stopPropagation();
+  state.userMenuOpen = !state.userMenuOpen;
   render();
 }
 
@@ -1011,19 +1064,21 @@ async function submitProfile(){
     const bio = document.getElementById('p-bio').value.trim();
     const gender = document.getElementById('p-gender').value.trim();
     const occupation = document.getElementById('p-occupation').value.trim();
-    const political = document.getElementById('p-political').value;
+    const political = state.selectedPolitical;
     const existingPhoto = (state.viewingProfile && state.viewingProfileUid === state.user.uid) ? state.viewingProfile.photoURL : null;
     let photoURL;
     if(state.pendingPhotoDataUrl === 'REMOVE') photoURL = null;
     else if(state.pendingPhotoDataUrl) photoURL = state.pendingPhotoDataUrl;
     else photoURL = existingPhoto || null;
-    await fb.setDoc(fb.doc(db, 'users', state.user.uid), {
+    const saved = {
       displayName: state.user.displayName, email: state.user.email,
       photoURL, bio: bio || null,
       gender: gender || null, occupation: occupation || null,
       political: (political && political !== 'Prefer not to say') ? political : null
-    }, { merge: true });
+    };
+    await fb.setDoc(fb.doc(db, 'users', state.user.uid), saved, { merge: true });
     state.pendingPhotoDataUrl = null;
+    state.myProfile = { ...(state.myProfile || {}), ...saved };
     showToast('Profile saved');
     await openProfile(state.user.uid);
   }catch(e){
@@ -1088,11 +1143,23 @@ function renderSetupScreen(app){
 
 function renderHeader(){
   const count = unreadCount();
+  const myPhoto = state.myProfile && state.myProfile.photoURL;
   const authSection = state.user
     ? `<div class="auth-nav">
-        <span class="user-chip" style="cursor:pointer;" onclick="openProfile('${state.user.uid}')">hey, <strong>${esc(state.user.displayName || 'you')}</strong></span>
         <button class="messages-nav ${state.view==='inbox'||state.view==='chat' ? 'active' : ''}" onclick="goInbox()">messages${count ? ` <span class="badge-dot">${count}</span>` : ''}</button>
-        <button class="auth-btn" onclick="logOut()">Log out</button>
+        <div class="user-menu">
+          <button class="user-menu-trigger" onclick="toggleUserMenu(event)">
+            ${avatarHtml(state.user.displayName, myPhoto, 'avatar-xs')}
+            <span class="user-menu-name">${esc(state.user.displayName || 'you')}</span>
+            <svg class="chev" viewBox="0 0 12 8" width="10" height="7"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          ${state.userMenuOpen ? `<div class="user-menu-dropdown">
+            <button onclick="toggleUserMenu();openProfile('${state.user.uid}')">View profile</button>
+            <button onclick="toggleUserMenu();goEditProfile()">Edit profile</button>
+            <div class="user-menu-divider"></div>
+            <button onclick="toggleUserMenu();logOut()">Log out</button>
+          </div>` : ''}
+        </div>
       </div>`
     : `<div class="auth-nav">
         <button class="auth-btn" onclick="openAuthModal('login')">Log in</button>
@@ -1483,29 +1550,45 @@ function renderEditProfile(app){
     <button class="back" onclick="openProfile('${state.user.uid}')">&larr; your profile</button>
     <div class="panel">
       <h2>Edit your profile</h2>
-      <p style="font-size:13.5px;color:var(--ink-soft);margin:-14px 0 22px;">Everything here is optional and public — anyone can see it if they click your name.</p>
+      <p style="font-size:13.5px;color:var(--ink-soft);margin:-14px 0 26px;">Everything here is optional and public — anyone can see it if they click your name.</p>
 
-      <label>Profile photo</label>
-      <div class="photo-edit-row">
-        <div id="p-photo-preview-wrap">${avatarHtml(state.user.displayName, p.photoURL, 'avatar-xl')}</div>
-        <div class="photo-edit-actions">
-          <label class="btn ghost" for="p-photo-file" style="cursor:pointer;display:inline-block;">Upload a photo</label>
-          <input type="file" id="p-photo-file" accept="image/*" style="display:none;" onchange="handlePhotoFile(this)">
-          ${p.photoURL ? `<button type="button" class="btn ghost" onclick="removePhoto()">Remove photo</button>` : ''}
-          <p class="photo-hint">JPG or PNG, resized automatically. Nothing is uploaded until you hit Save.</p>
+      <div class="form-section">
+        <h3 class="form-section-title">Photo</h3>
+        <div class="photo-edit-row">
+          <div id="p-photo-preview-wrap">${avatarHtml(state.user.displayName, p.photoURL, 'avatar-xl')}</div>
+          <div class="photo-edit-actions">
+            <label class="btn ghost" for="p-photo-file" style="cursor:pointer;display:inline-block;">Upload a photo</label>
+            <input type="file" id="p-photo-file" accept="image/*" style="display:none;" onchange="handlePhotoFile(this)">
+            ${p.photoURL ? `<button type="button" class="btn ghost" onclick="removePhoto()">Remove photo</button>` : ''}
+            <p class="photo-hint">JPG or PNG, resized automatically. Nothing is uploaded until you hit Save.</p>
+          </div>
         </div>
       </div>
 
-      <label for="p-bio">Short bio</label>
-      <textarea id="p-bio" rows="3" placeholder="A sentence about you or your debating style.">${esc(p.bio || '')}</textarea>
-      <label for="p-occupation">Occupation</label>
-      <input type="text" id="p-occupation" placeholder="e.g. Teacher, Software Engineer" value="${esc(p.occupation || '')}">
-      <label for="p-gender">Gender</label>
-      <input type="text" id="p-gender" placeholder="e.g. Woman, Man, Non-binary" value="${esc(p.gender || '')}">
-      <label for="p-political">Political spectrum</label>
-      <select id="p-political">
-        ${POLITICAL_OPTIONS.map(o => `<option value="${esc(o)}" ${p.political === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}
-      </select>
+      <div class="form-section">
+        <h3 class="form-section-title">About you</h3>
+        <label for="p-bio">Short bio</label>
+        <textarea id="p-bio" rows="3" placeholder="A sentence about you or your debating style.">${esc(p.bio || '')}</textarea>
+      </div>
+
+      <div class="form-section">
+        <h3 class="form-section-title">Details <span class="form-section-sub">(all optional)</span></h3>
+        <div class="form-grid-2">
+          <div>
+            <label for="p-occupation">Occupation</label>
+            <input type="text" id="p-occupation" placeholder="e.g. Teacher, Software Engineer" value="${esc(p.occupation || '')}">
+          </div>
+          <div>
+            <label for="p-gender">Gender</label>
+            <input type="text" id="p-gender" placeholder="e.g. Woman, Man, Non-binary" value="${esc(p.gender || '')}">
+          </div>
+        </div>
+        <label>Political spectrum</label>
+        <div class="chip-select" id="p-political-chips">
+          ${POLITICAL_OPTIONS.map(o => `<button type="button" class="option-chip ${state.selectedPolitical===o?'active':''}" onclick="selectPolitical('${esc(o)}', this)">${esc(o)}</button>`).join('')}
+        </div>
+      </div>
+
       <div class="form-actions">
         <button class="btn primary" id="save-profile-btn" onclick="submitProfile()">Save profile</button>
         <button class="btn ghost" onclick="openProfile('${state.user.uid}')">Cancel</button>
@@ -1520,7 +1603,7 @@ Object.assign(window, {
   goList, goNew, goInbox, openTopic, openChat, submitTopic, addArg, vote, voteTopic,
   shareTopic, challengeAuthor, startChallenge, sendChatMsg, setCategoryFilter, setSortMode,
   openAuthModal, logOut, seedExampleDebate, openProfile, goEditProfile, submitProfile,
-  handlePhotoFile, removePhoto
+  handlePhotoFile, removePhoto, selectPolitical, toggleUserMenu
 });
 
 /* ---------- init ---------- */
@@ -1534,12 +1617,26 @@ if(NEEDS_SETUP){
 } else {
   fb.onAuthStateChanged(auth, (user) => {
     state.user = user ? { uid: user.uid, displayName: user.displayName, email: user.email } : null;
+    state.myProfile = null;
+    state.userMenuOpen = false;
+    if(user){
+      fb.getDoc(fb.doc(db, 'users', user.uid)).then(snap => {
+        state.myProfile = snap.exists() ? snap.data() : {};
+        render();
+      }).catch(() => {});
+    }
     subscribeInbox();
     render();
   });
   subscribeTopics();
   const initialId = new URLSearchParams(location.search).get('topic');
   if(initialId) openTopic(initialId); else render();
+  document.addEventListener('click', (e) => {
+    if(state.userMenuOpen && !e.target.closest('.user-menu')){
+      state.userMenuOpen = false;
+      render();
+    }
+  });
 }
 </script>
 </body>
