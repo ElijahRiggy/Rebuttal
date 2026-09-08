@@ -505,7 +505,7 @@ async function submitTopic(){
       title, description: desc, category,
       createdAt: fb.serverTimestamp(),
       createdBy: state.user.uid, createdByName: state.user.displayName,
-      proCount: 0, conCount: 0
+      proCount: 0, conCount: 0, votes: 0, votedBy: []
     });
     await openTopic(ref.id);
   }catch(e){
@@ -578,12 +578,60 @@ async function vote(argId){
   }catch(e){ /* ignore transient errors, snapshot will resync */ }
 }
 
+async function voteTopic(topicId, event){
+  if(event) event.stopPropagation();
+  if(!requireAuth()) return;
+  const topic = (state.topics || []).find(t => t.id === topicId) || (state.currentTopic && state.currentTopic.id === topicId ? state.currentTopic : null);
+  if(!topic) return;
+  const uid = state.user.uid;
+  const voted = (topic.votedBy || []).includes(uid);
+  const ref = fb.doc(db, 'topics', topicId);
+  try{
+    if(voted){
+      await fb.updateDoc(ref, { votes: fb.increment(-1), votedBy: fb.arrayRemove(uid) });
+    } else {
+      await fb.updateDoc(ref, { votes: fb.increment(1), votedBy: fb.arrayUnion(uid) });
+    }
+  }catch(e){ /* ignore transient errors, snapshot will resync */ }
+}
+
 function shareTopic(){
   const url = location.origin + location.pathname + '?topic=' + state.currentTopicId;
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(url).then(() => showToast('Link copied to clipboard')).catch(() => showToast(url));
   } else {
     showToast(url);
+  }
+}
+
+/* ---------- seed a realistic fake debate for testing (safe to delete once done) ---------- */
+async function seedExampleDebate(){
+  if(!requireAuth()) return;
+  try{
+    const ref = await fb.addDoc(fb.collection(db, 'topics'), {
+      title: 'Remote work is better than office work',
+      description: 'Where should the 9-to-5 actually happen?',
+      category: 'Society',
+      createdAt: fb.serverTimestamp(),
+      createdBy: state.user.uid, createdByName: state.user.displayName,
+      proCount: 2, conCount: 2, votes: 14, votedBy: []
+    });
+    const fakeArgs = [
+      { side: 'pro', author: 'Jordan Blake', authorUid: 'fake-jordan-blake', text: 'No commute means more time for family, hobbies, or just sleep. That adds up to hours every single week.', votes: 7 },
+      { side: 'pro', author: 'Lena Ortiz', authorUid: 'fake-lena-ortiz', text: "People are demonstrably more productive without constant office interruptions — fewer 'quick questions' at your desk.", votes: 3 },
+      { side: 'con', author: 'Chris Nakamura', authorUid: 'fake-chris-nakamura', text: 'In-person collaboration sparks ideas that a Slack thread never will. Whiteboard sessions just work better face to face.', votes: 6 },
+      { side: 'con', author: 'Aisha Bello', authorUid: 'fake-aisha-bello', text: 'New hires learn company culture far faster sitting next to experienced teammates than through a screen.', votes: 2 }
+    ];
+    for(const a of fakeArgs){
+      await fb.addDoc(fb.collection(db, 'topics', ref.id, 'arguments'), {
+        side: a.side, text: a.text, votes: a.votes, votedBy: [],
+        author: a.author, authorUid: a.authorUid, createdAt: fb.serverTimestamp()
+      });
+    }
+    await openTopic(ref.id);
+    showToast('Test debate created — click "Debate" under any argument to try the flow.');
+  }catch(e){
+    alert("Couldn't seed the example debate. Check you're logged in and Firestore rules are published.");
   }
 }
 
@@ -824,11 +872,17 @@ function renderList(app){
     rows = filtered.map(t => {
       const total = (t.proCount||0) + (t.conCount||0);
       const proPct = total ? Math.round((t.proCount/total)*100) : 50;
+      const topicVoted = state.user && (t.votedBy || []).includes(state.user.uid);
       return `<div class="row" onclick="openTopic('${t.id}')">
-        <div>
-          <div class="category-badge">${esc(t.category || 'Other')}</div>
-          <p class="row-title">${esc(t.title)}</p>
-          ${t.description ? `<p class="row-desc">${esc(t.description)}</p>` : ''}
+        <div style="display:flex;gap:14px;align-items:flex-start;">
+          <button class="vote-btn ${topicVoted?'voted':''}" style="flex-shrink:0;margin-top:2px;" onclick="voteTopic('${t.id}', event)">
+            <span>${topicVoted ? '&#9650;' : '&#9651;'}</span><span>${t.votes||0}</span>
+          </button>
+          <div>
+            <div class="category-badge">${esc(t.category || 'Other')}</div>
+            <p class="row-title">${esc(t.title)}</p>
+            ${t.description ? `<p class="row-desc">${esc(t.description)}</p>` : ''}
+          </div>
         </div>
         <div class="row-meta">
           <div class="score-bar"><div class="p" style="width:${proPct}%"></div><div class="c" style="width:${100-proPct}%"></div></div>
@@ -842,7 +896,8 @@ function renderList(app){
     return `<button class="category-chip ${state.categoryFilter===c?'active':''}" onclick="setCategoryFilter('${c}')">${label}</button>`;
   }).join('');
   app.innerHTML = renderHeader() + `
-    <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      ${state.user ? `<button class="btn ghost" onclick="seedExampleDebate()">+ seed test debate</button>` : `<span></span>`}
       <button class="btn primary" onclick="goNew()">+ new debate</button>
     </div>
     <div class="category-filters">${chips}</div>
@@ -897,6 +952,7 @@ function renderTopic(app){
     </div>`;
   };
 
+  const topicVoted = state.user && (topic.votedBy || []).includes(state.user.uid);
   app.innerHTML = renderHeader() + `
     <button class="back" onclick="goList()">&larr; all debates</button>
     <div class="topic-head-row">
@@ -905,7 +961,12 @@ function renderTopic(app){
         <h1>${esc(topic.title)}</h1>
         ${topic.description ? `<p>${esc(topic.description)}</p>` : ''}
       </div>
-      <button class="share-btn" onclick="shareTopic()">Share &#8599;</button>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button class="vote-btn ${topicVoted?'voted':''}" onclick="voteTopic('${topic.id}')">
+          <span>${topicVoted ? '&#9650;' : '&#9651;'}</span><span>${topic.votes||0}</span>
+        </button>
+        <button class="share-btn" onclick="shareTopic()">Share &#8599;</button>
+      </div>
     </div>
     <div class="tally">
       <div class="side pro"><div class="n">${pro.length}</div><div class="l">pro arguments</div></div>
@@ -1002,9 +1063,9 @@ function renderChat(app){
 
 /* ---------- wire up window globals for inline onclick handlers ---------- */
 Object.assign(window, {
-  goList, goNew, goInbox, openTopic, openChat, submitTopic, addArg, vote,
+  goList, goNew, goInbox, openTopic, openChat, submitTopic, addArg, vote, voteTopic,
   shareTopic, challengeAuthor, startChallenge, sendChatMsg, setCategoryFilter,
-  openAuthModal, logOut
+  openAuthModal, logOut, seedExampleDebate
 });
 
 /* ---------- init ---------- */
