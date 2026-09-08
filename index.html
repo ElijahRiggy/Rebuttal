@@ -21,6 +21,10 @@
     --wine-tint:#FBEDEF;
     --wine-tint-2:#F0D4D9;
     --logo-red:#D6293F;
+    --amber:#8A5A12;
+    --amber-tint:#F5EBD6;
+    --slate:#39506B;
+    --slate-tint:#E4EAF0;
     --forest:#1F6B54;
     --forest-tint:#E9F5EF;
     --forest-tint-2:#CFEADB;
@@ -274,7 +278,7 @@
   /* Inbox / profile list */
   .thread-row{
     display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:14px;
-    background:var(--surface);border:1px solid var(--hairline);border-left:3px solid transparent;margin-bottom:10px;cursor:pointer;
+    background:var(--surface);border:1px solid var(--hairline);border-left:4px solid transparent;margin-bottom:10px;cursor:pointer;
     transition:box-shadow .15s,transform .15s,background .15s;
   }
   .thread-row:hover{box-shadow:var(--shadow-sm);transform:translateY(-1px);}
@@ -317,6 +321,22 @@
   .msg.theirs.msg-cont{border-top-left-radius:4px;}
   .msg.msg-new{animation:msgIn .32s cubic-bezier(.2,.8,.2,1);}
   @keyframes msgIn{from{opacity:0;transform:translateY(10px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);}}
+
+  /* Author links */
+  .author-link{cursor:pointer;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid transparent;}
+  .author-link:hover{color:var(--wine);border-bottom-color:var(--wine);}
+
+  /* Profile */
+  .avatar-xl{width:96px;height:96px;font-size:32px;flex-shrink:0;}
+  .profile-card{display:flex;gap:28px;align-items:flex-start;background:var(--surface);border:1px solid var(--hairline);border-radius:20px;padding:36px;margin-bottom:28px;box-shadow:var(--shadow-sm);flex-wrap:wrap;}
+  .profile-main{flex:1;min-width:220px;}
+  .profile-main h1{font-family:'Manrope',sans-serif;font-size:28px;font-weight:800;margin:0 0 10px;letter-spacing:-0.01em;}
+  .profile-bio{font-size:15px;color:var(--ink-soft);line-height:1.6;margin:0 0 18px;max-width:520px;}
+  .profile-bio-empty{color:var(--ink-mute);font-style:italic;}
+  .profile-fields{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;}
+  .profile-field{background:var(--surface-sunken);border-radius:12px;padding:10px 16px;}
+  .pf-label{display:block;font-size:11px;color:var(--ink-mute);font-weight:700;letter-spacing:.02em;margin-bottom:2px;}
+  .pf-value{display:block;font-size:14px;color:var(--ink);font-weight:600;}
   .thread-empty{text-align:center;color:var(--ink-mute);font-size:14.5px;padding:36px 0;}
   .msg-input-row{display:flex;gap:10px;}
   .msg-input-row textarea{flex:1;min-height:50px;margin:0;}
@@ -373,6 +393,7 @@ const state = {
   currentTopicId: null, currentTopic: null, currentArgs: [],
   threads: [], currentThreadId: null, currentThread: null, chatWithUid: null, chatWithName: null, chatMessages: [],
   chatAutoFocusPending: false, lastRenderedMsgCount: -1, inboxHasLoadedOnce: false,
+  viewingProfileUid: null, viewingProfile: null, viewingProfileLoaded: false, submittingProfile: false,
   submittingTopic: false, submittingArg: { pro: false, con: false }, submittingMsg: false, submittingAuth: false,
   topicUnsubs: [], chatUnsubs: [], globalUnsubs: [],
   toastMsg: null, toastTimer: null
@@ -395,15 +416,26 @@ function initials(name){
 }
 function avatarStyle(name){
   const palette = [
-    {bg:'var(--pro-tint)', text:'var(--pro)'},
-    {bg:'var(--con-tint)', text:'var(--con)'},
-    {bg:'var(--gold-tint)', text:'var(--gold)'},
-    {bg:'var(--surface-hi)', text:'var(--text)'}
+    {bg:'var(--forest-tint)', text:'var(--forest)'},
+    {bg:'var(--wine-tint)', text:'var(--wine)'},
+    {bg:'var(--amber-tint)', text:'var(--amber)'},
+    {bg:'var(--slate-tint)', text:'var(--slate)'}
   ];
   let hash = 0;
   for(const c of (name||'')) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
   return palette[hash % palette.length];
 }
+function avatarHtml(name, photoURL, sizeClass){
+  if(photoURL){
+    return `<img src="${esc(photoURL)}" alt="" class="avatar ${sizeClass||''}" style="object-fit:cover;" onerror="this.outerHTML=window.__avatarFallback('${esc(name).replace(/'/g,"&#39;")}','${sizeClass||''}')">`;
+  }
+  const av = avatarStyle(name);
+  return `<div class="avatar ${sizeClass||''}" style="background:${av.bg};color:${av.text};">${esc(initials(name))}</div>`;
+}
+window.__avatarFallback = function(name, sizeClass){
+  const av = avatarStyle(name);
+  return `<div class="avatar ${sizeClass||''}" style="background:${av.bg};color:${av.text};">${esc(initials(name))}</div>`;
+};
 function showToast(msg){
   state.toastMsg = msg;
   render();
@@ -870,11 +902,68 @@ function goNew(){
   render();
 }
 
+/* ---------- profiles ---------- */
+const POLITICAL_OPTIONS = ['Prefer not to say', 'Left', 'Center-left', 'Center', 'Center-right', 'Right', 'Other / not political'];
+
+async function openProfile(uid){
+  cleanupTopicSubs();
+  cleanupChatSubs();
+  state.view = 'profile';
+  state.viewingProfileUid = uid;
+  state.viewingProfile = null;
+  state.viewingProfileLoaded = false;
+  pushUrl('');
+  render();
+  try{
+    const snap = await fb.getDoc(fb.doc(db, 'users', uid));
+    state.viewingProfile = snap.exists() ? snap.data() : null;
+  }catch(e){
+    state.viewingProfile = null;
+  }
+  state.viewingProfileLoaded = true;
+  render();
+}
+
+function goEditProfile(){
+  if(!requireAuth()) return;
+  cleanupTopicSubs();
+  cleanupChatSubs();
+  state.view = 'edit-profile';
+  pushUrl('');
+  render();
+}
+
+async function submitProfile(){
+  if(state.submittingProfile) return;
+  state.submittingProfile = true;
+  const btn = document.getElementById('save-profile-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
+  try{
+    const photoURL = document.getElementById('p-photo').value.trim();
+    const bio = document.getElementById('p-bio').value.trim();
+    const gender = document.getElementById('p-gender').value.trim();
+    const occupation = document.getElementById('p-occupation').value.trim();
+    const political = document.getElementById('p-political').value;
+    await fb.setDoc(fb.doc(db, 'users', state.user.uid), {
+      displayName: state.user.displayName, email: state.user.email,
+      photoURL: photoURL || null, bio: bio || null,
+      gender: gender || null, occupation: occupation || null,
+      political: (political && political !== 'Prefer not to say') ? political : null
+    }, { merge: true });
+    showToast('Profile saved');
+    await openProfile(state.user.uid);
+  }catch(e){
+    alert("Couldn't save your profile. Try again.");
+  }finally{
+    state.submittingProfile = false;
+  }
+}
+
 /* ================== RENDERING ================== */
 function render(){
   const app = document.getElementById('app');
   if(NEEDS_SETUP) return renderSetupScreen(app);
-  if(!state.user && (state.view === 'chat' || state.view === 'inbox' || state.view === 'new')){
+  if(!state.user && (state.view === 'chat' || state.view === 'inbox' || state.view === 'new' || state.view === 'edit-profile')){
     state.view = 'list';
   }
   if(state.view === 'list') renderList(app);
@@ -882,6 +971,8 @@ function render(){
   else if(state.view === 'topic') renderTopic(app);
   else if(state.view === 'inbox') renderInbox(app);
   else if(state.view === 'chat') renderChat(app);
+  else if(state.view === 'profile') renderProfile(app);
+  else if(state.view === 'edit-profile') renderEditProfile(app);
   renderToast();
 }
 
@@ -925,7 +1016,7 @@ function renderHeader(){
   const count = unreadCount();
   const authSection = state.user
     ? `<div class="auth-nav">
-        <span class="user-chip">hey, <strong>${esc(state.user.displayName || 'you')}</strong></span>
+        <span class="user-chip" style="cursor:pointer;" onclick="openProfile('${state.user.uid}')">hey, <strong>${esc(state.user.displayName || 'you')}</strong></span>
         <button class="messages-nav ${state.view==='inbox'||state.view==='chat' ? 'active' : ''}" onclick="goInbox()">messages${count ? ` <span class="badge-dot">${count}</span>` : ''}</button>
         <button class="auth-btn" onclick="logOut()">Log out</button>
       </div>`
@@ -1066,7 +1157,7 @@ function renderTopic(app){
     return `<div class="arg-card ${a.side}">
       <p class="arg-rank">${rank}</p>
       <p class="arg-text">${esc(a.text)}</p>
-      <p class="arg-meta">${a.author ? esc(a.author) : 'anonymous'} — ${timeAgo(a.createdAt)}</p>
+      <p class="arg-meta">${a.author && a.authorUid ? `<span class="author-link" onclick="event.stopPropagation();openProfile('${a.authorUid}')">${esc(a.author)}</span>` : (a.author ? esc(a.author) : 'anonymous')} — ${timeAgo(a.createdAt)}</p>
       <div class="arg-foot">
         <div class="vote-widget">
           <button class="vote-arrow up ${myChoice==='up'?'active':''}" onclick="vote('${a.id}','up')">&#9650;</button>
@@ -1148,11 +1239,11 @@ function renderInbox(app){
       const unread = t.lastAuthorUid && t.lastAuthorUid !== state.user.uid && lastTs > readTs;
       const av = avatarStyle(otherName);
       const animStyle = isFirstLoad ? `style="animation-delay:${Math.min(i,8)*40}ms"` : '';
-      return `<div class="thread-row ${unread?'unread-row':''} ${isFirstLoad?'row-in':''}" ${animStyle} onclick="openChat('${t.id}', '${otherUid}', '${esc(otherName).replace(/'/g,"&#39;")}')" style="border-left-color:${unread ? av.text : 'transparent'};">
-        <div class="avatar avatar-lg" style="background:${av.bg};color:${av.text};">${esc(initials(otherName))}</div>
+      return `<div class="thread-row ${unread?'unread-row':''} ${isFirstLoad?'row-in':''}" ${animStyle} onclick="openChat('${t.id}', '${otherUid}', '${esc(otherName).replace(/'/g,"&#39;")}')" style="border-left-color:${av.text};">
+        <div onclick="event.stopPropagation();openProfile('${otherUid}')" style="cursor:pointer;">${avatarHtml(otherName, null, 'avatar-lg')}</div>
         <div class="thread-info">
           <div class="thread-top">
-            <p class="thread-name">${esc(otherName)}</p>
+            <p class="thread-name author-link" onclick="event.stopPropagation();openProfile('${otherUid}')">${esc(otherName)}</p>
             <span class="thread-time">${timeAgo(t.lastTs)}</span>
           </div>
           ${t.topicTitle ? `<p class="thread-topic">on "${esc(t.topicTitle)}"</p>` : ''}
@@ -1224,9 +1315,9 @@ function renderChat(app){
   app.innerHTML = renderHeader() + `
     <button class="back" onclick="goInbox()">&larr; messages</button>
     <div class="chat-head" style="background:${av.bg};">
-      <div class="avatar avatar-lg" style="background:${av.text};color:#fff;">${esc(initials(state.chatWithName))}</div>
+      <div class="avatar avatar-lg" style="background:${av.text};color:#fff;cursor:pointer;" onclick="openProfile('${state.chatWithUid}')">${esc(initials(state.chatWithName))}</div>
       <div>
-        <h1>${esc(state.chatWithName)}</h1>
+        <h1 style="cursor:pointer;" onclick="openProfile('${state.chatWithUid}')">${esc(state.chatWithName)}</h1>
         ${t.topicTitle && t.topicId ? `<button class="topic-chip" onclick="openTopic('${t.topicId}')">Debating: ${esc(t.topicTitle)}</button>` : ''}
       </div>
     </div>
@@ -1262,11 +1353,68 @@ function renderChat(app){
   }
 }
 
+function renderProfile(app){
+  const uid = state.viewingProfileUid;
+  const p = state.viewingProfile;
+  const isMe = state.user && state.user.uid === uid;
+  if(!state.viewingProfileLoaded){
+    app.innerHTML = renderHeader() + `<div class="loading">loading profile…</div>`;
+    return;
+  }
+  const name = (p && p.displayName) || (isMe ? state.user.displayName : 'This debater');
+  const fields = [];
+  if(p && p.occupation) fields.push({ label: 'Occupation', value: p.occupation });
+  if(p && p.gender) fields.push({ label: 'Gender', value: p.gender });
+  if(p && p.political) fields.push({ label: 'Political leaning', value: p.political });
+
+  app.innerHTML = renderHeader() + `
+    <button class="back" onclick="goList()">&larr; all debates</button>
+    <div class="profile-card">
+      ${avatarHtml(name, p && p.photoURL, 'avatar-xl')}
+      <div class="profile-main">
+        <h1>${esc(name)}</h1>
+        ${p && p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : (isMe ? `<p class="profile-bio profile-bio-empty">You haven't added a bio yet.</p>` : '')}
+        ${fields.length ? `<div class="profile-fields">${fields.map(f => `<div class="profile-field"><span class="pf-label">${esc(f.label)}</span><span class="pf-value">${esc(f.value)}</span></div>`).join('')}</div>` : ''}
+        ${isMe ? `<button class="btn primary" onclick="goEditProfile()">Edit your profile</button>` : ''}
+      </div>
+    </div>
+    ${renderFooter()}
+  `;
+}
+
+function renderEditProfile(app){
+  const p = state.viewingProfile && state.viewingProfileUid === state.user.uid ? state.viewingProfile : {};
+  app.innerHTML = renderHeader() + `
+    <button class="back" onclick="openProfile('${state.user.uid}')">&larr; your profile</button>
+    <div class="panel">
+      <h2>Edit your profile</h2>
+      <p style="font-size:13.5px;color:var(--ink-soft);margin:-14px 0 22px;">Everything here is optional and public — anyone can see it if they click your name.</p>
+      <label for="p-photo">Photo URL</label>
+      <input type="text" id="p-photo" placeholder="https://... (a link to an image hosted anywhere)" value="${esc(p.photoURL || '')}">
+      <label for="p-bio">Short bio</label>
+      <textarea id="p-bio" rows="3" placeholder="A sentence about you or your debating style.">${esc(p.bio || '')}</textarea>
+      <label for="p-occupation">Occupation</label>
+      <input type="text" id="p-occupation" placeholder="e.g. Teacher, Software Engineer" value="${esc(p.occupation || '')}">
+      <label for="p-gender">Gender</label>
+      <input type="text" id="p-gender" placeholder="e.g. Woman, Man, Non-binary" value="${esc(p.gender || '')}">
+      <label for="p-political">Political spectrum</label>
+      <select id="p-political">
+        ${POLITICAL_OPTIONS.map(o => `<option value="${esc(o)}" ${p.political === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+      </select>
+      <div class="form-actions">
+        <button class="btn primary" id="save-profile-btn" onclick="submitProfile()">Save profile</button>
+        <button class="btn ghost" onclick="openProfile('${state.user.uid}')">Cancel</button>
+      </div>
+    </div>
+    ${renderFooter()}
+  `;
+}
+
 /* ---------- wire up window globals for inline onclick handlers ---------- */
 Object.assign(window, {
   goList, goNew, goInbox, openTopic, openChat, submitTopic, addArg, vote, voteTopic,
   shareTopic, challengeAuthor, startChallenge, sendChatMsg, setCategoryFilter, setSortMode,
-  openAuthModal, logOut, seedExampleDebate
+  openAuthModal, logOut, seedExampleDebate, openProfile, goEditProfile, submitProfile
 });
 
 /* ---------- init ---------- */
