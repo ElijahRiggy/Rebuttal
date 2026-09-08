@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rebuttal — pick a side</title>
+<meta name="description" content="Post a debate, argue Pro or Con, and let the votes decide who's actually winning the argument.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Rebuttal — pick a side">
+<meta property="og:description" content="Post a debate, argue Pro or Con, and let the votes decide who's actually winning the argument.">
+<meta property="twitter:card" content="summary">
+<meta property="twitter:title" content="Rebuttal — pick a side">
+<meta property="twitter:description" content="Post a debate, argue Pro or Con, and let the votes decide who's actually winning the argument.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -377,6 +384,33 @@
   .form-section-sub{font-family:'Public Sans',sans-serif;font-size:12px;font-weight:500;color:var(--ink-mute);}
   .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
   @media (max-width:560px){ .form-grid-2{grid-template-columns:1fr;} }
+  .visibility-toggle{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-mute);font-weight:500;margin-top:8px;cursor:pointer;}
+  .visibility-toggle input{margin:0;cursor:pointer;}
+
+  /* Argument owner actions / reports / replies */
+  .arg-actions-row{display:flex;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline);}
+  .mini-link{font-family:'Public Sans',sans-serif;font-size:12px;font-weight:600;color:var(--ink-mute);background:none;border:none;cursor:pointer;padding:0;}
+  .mini-link:hover{color:var(--ink);}
+  .mini-link-danger:hover{color:var(--wine);}
+  .edited-tag{font-size:11.5px;color:var(--ink-mute);font-weight:500;font-style:italic;}
+  .share-btn-danger:hover{background:var(--wine-tint);color:var(--wine);}
+  .replies-box{margin-top:12px;padding:12px 14px;background:var(--surface-sunken);border-radius:12px;}
+  .reply-item{padding:8px 0;border-bottom:1px solid var(--hairline);}
+  .reply-item:last-child{border-bottom:none;}
+  .reply-item p{font-size:13.5px;color:var(--ink);margin:3px 0 0;line-height:1.5;}
+  .replies-loading, .replies-empty{font-size:12.5px;color:var(--ink-mute);margin:0 0 8px;}
+  .reply-input-row{display:flex;gap:8px;margin-top:10px;}
+  .reply-input-row textarea{flex:1;min-height:40px;margin:0;font-size:13.5px;padding:8px 12px;}
+  .reply-input-row .btn{padding:8px 14px;font-size:13px;}
+  .msg-delete{position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;border:2px solid var(--paper);font-size:13px;line-height:1;cursor:pointer;display:none;align-items:center;justify-content:center;}
+  .msg.mine{position:relative;}
+  .msg.mine:hover .msg-delete{display:flex;}
+
+  /* Search + verify banner */
+  .search-input{width:100%;max-width:320px;font-family:'Public Sans',sans-serif;font-size:14px;padding:9px 14px;border:1.5px solid var(--hairline-strong);border-radius:20px;background:var(--surface);}
+  .search-input:focus{outline:none;border-color:var(--ink);}
+  .verify-banner{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--amber-tint);border-radius:12px;padding:12px 18px;margin-bottom:24px;font-size:13.5px;color:var(--ink);flex-wrap:wrap;}
+  .verify-banner .btn{padding:6px 14px;font-size:12.5px;}
   .thread-empty{text-align:center;color:var(--ink-mute);font-size:14.5px;padding:36px 0;}
   .msg-input-row{display:flex;gap:10px;}
   .msg-input-row textarea{flex:1;min-height:50px;margin:0;}
@@ -435,6 +469,9 @@ const state = {
   chatAutoFocusPending: false, lastRenderedMsgCount: -1, inboxHasLoadedOnce: false,
   viewingProfileUid: null, viewingProfile: null, viewingProfileLoaded: false, viewingProfileDebates: [],
   submittingProfile: false, pendingPhotoDataUrl: null, myProfile: null, userMenuOpen: false, selectedPolitical: null,
+  editingTopicId: null, searchQuery: '', myBlocks: [], profileFieldVisibility: { gender: true, occupation: true, political: true },
+  notificationsEnabled: false, verificationBannerDismissed: false, openReplyThreads: [], repliesByArg: {},
+  viewingProfileArguments: [],
   submittingTopic: false, submittingArg: { pro: false, con: false }, submittingMsg: false, submittingAuth: false,
   topicUnsubs: [], chatUnsubs: [], globalUnsubs: [],
   toastMsg: null, toastTimer: null
@@ -485,6 +522,29 @@ function showToast(msg){
 }
 function pushUrl(qs){
   history.pushState({}, '', location.pathname + qs);
+}
+
+async function resendVerification(){
+  try{
+    await fb.sendEmailVerification(auth.currentUser || state.user);
+    showToast('Verification email sent — check your inbox');
+  }catch(e){
+    alert("Couldn't send that right now. Try again in a bit.");
+  }
+}
+function dismissVerifyBanner(){
+  state.verificationBannerDismissed = true;
+  render();
+}
+function renderVerifyBanner(){
+  if(!state.user || state.user.emailVerified || state.verificationBannerDismissed) return '';
+  return `<div class="verify-banner">
+    <span>Verify your email to help keep accounts real — check your inbox for a link.</span>
+    <div style="display:flex;gap:8px;">
+      <button class="btn ghost" onclick="resendVerification()">Resend email</button>
+      <button class="btn ghost" onclick="dismissVerifyBanner()">Dismiss</button>
+    </div>
+  </div>`;
 }
 
 /* ---------- auth ---------- */
@@ -570,7 +630,10 @@ function openAuthModal(mode){
         const cred = await fb.createUserWithEmailAndPassword(auth, email, pass);
         await fb.updateProfile(cred.user, { displayName: name });
         await fb.setDoc(fb.doc(db, 'users', cred.user.uid), { displayName: name, email, createdAt: fb.serverTimestamp() });
-        state.user = { uid: cred.user.uid, displayName: name, email };
+        try{ await fb.sendEmailVerification(cred.user); }catch(e){}
+        state.user = { uid: cred.user.uid, displayName: name, email, emailVerified: false };
+        state.myProfile = {};
+        loadMyBlocks();
         subscribeInbox();
         render();
       } else {
@@ -604,10 +667,51 @@ function subscribeInbox(){
   if(!state.user) { state.threads = []; return; }
   const q = fb.query(fb.collection(db, 'threads'), fb.where('participantUids', 'array-contains', state.user.uid));
   const unsub = fb.onSnapshot(q, snap => {
-    state.threads = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const newThreads = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    maybeNotifyNewMessages(state.threads, newThreads);
+    state.threads = newThreads;
     render();
   }, err => console.error('inbox sub error', err));
   state.globalUnsubs.push(unsub);
+}
+
+function maybeNotifyNewMessages(oldThreads, newThreads){
+  if(!state.notificationsEnabled) return;
+  if(typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  if(typeof document !== 'undefined' && !document.hidden) return; // only notify when the tab isn't in front
+  const oldByThread = {};
+  (oldThreads || []).forEach(t => { oldByThread[t.id] = t.lastTs ? (t.lastTs.toMillis ? t.lastTs.toMillis() : t.lastTs) : 0; });
+  newThreads.forEach(t => {
+    if(t.lastAuthorUid && state.user && t.lastAuthorUid === state.user.uid) return; // don't notify on my own messages
+    const newTs = t.lastTs ? (t.lastTs.toMillis ? t.lastTs.toMillis() : t.lastTs) : 0;
+    const oldTs = oldByThread[t.id] || 0;
+    if(newTs > oldTs && oldTs > 0){ // oldTs>0 avoids notifying on the very first inbox load
+      const otherUid = (t.participantUids || []).find(u => u !== state.user.uid);
+      const otherName = (t.participantNames && t.participantNames[otherUid]) || 'Someone';
+      try{ new Notification('Rebuttal — ' + otherName, { body: t.lastText || 'sent you a message' }); }catch(e){}
+    }
+  });
+}
+
+async function toggleNotifications(){
+  if(typeof Notification === 'undefined'){
+    alert("Your browser doesn't support notifications.");
+    return;
+  }
+  if(state.notificationsEnabled){
+    state.notificationsEnabled = false;
+    showToast('Notifications turned off');
+    render();
+    return;
+  }
+  const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+  if(perm === 'granted'){
+    state.notificationsEnabled = true;
+    showToast('Notifications on — you\'ll get a browser notification for new messages while this tab is open in the background');
+  } else {
+    alert("Notifications were blocked. You can re-enable them in your browser's site settings.");
+  }
+  render();
 }
 function cleanupGlobalInboxSub(){ /* handled by full teardown on logout if needed */ }
 function cleanupTopicSubs(){
@@ -639,19 +743,49 @@ async function submitTopic(){
   if(!title){ errEl.textContent = 'Give the debate a topic first.'; errEl.style.display = 'block'; return; }
   state.submittingTopic = true;
   const btn = document.getElementById('create-topic-btn');
-  if(btn){ btn.disabled = true; btn.textContent = 'Creating…'; }
+  if(btn){ btn.disabled = true; btn.textContent = state.editingTopicId ? 'Saving…' : 'Creating…'; }
   try{
-    const ref = await fb.addDoc(fb.collection(db, 'topics'), {
-      title, description: desc, category,
-      createdAt: fb.serverTimestamp(),
-      createdBy: state.user.uid, createdByName: state.user.displayName,
-      proCount: 0, conCount: 0, votes: 0, voterChoices: {}
-    });
-    await openTopic(ref.id);
+    if(state.editingTopicId){
+      await fb.updateDoc(fb.doc(db, 'topics', state.editingTopicId), { title, description: desc, category });
+      const id = state.editingTopicId;
+      state.editingTopicId = null;
+      await openTopic(id);
+    } else {
+      const ref = await fb.addDoc(fb.collection(db, 'topics'), {
+        title, description: desc, category,
+        createdAt: fb.serverTimestamp(),
+        createdBy: state.user.uid, createdByName: state.user.displayName,
+        proCount: 0, conCount: 0, votes: 0, voterChoices: {}
+      });
+      await openTopic(ref.id);
+    }
   }catch(e){
-    alert("Couldn't create that debate. Try again.");
+    alert("Couldn't save that debate. Try again.");
   }finally{
     state.submittingTopic = false;
+  }
+}
+
+function goEditTopic(){
+  if(!state.currentTopic || state.currentTopic.createdBy !== state.user.uid) return;
+  state.editingTopicId = state.currentTopic.id;
+  state.view = 'new';
+  pushUrl('');
+  render();
+}
+
+async function deleteTopic(id){
+  if(!confirm('Delete this debate and every argument in it? This can\'t be undone.')) return;
+  try{
+    const argsSnap = await fb.getDocs(fb.collection(db, 'topics', id, 'arguments'));
+    for(const d of argsSnap.docs){
+      await fb.deleteDoc(fb.doc(db, 'topics', id, 'arguments', d.id));
+    }
+    await fb.deleteDoc(fb.doc(db, 'topics', id));
+    showToast('Debate deleted');
+    goList();
+  }catch(e){
+    alert("Couldn't delete that debate. Try again.");
   }
 }
 
@@ -662,6 +796,9 @@ async function openTopic(id){
   state.currentTopic = null;
   state.currentArgs = [];
   state.view = 'topic';
+  state.editingTopicId = null;
+  state.openReplyThreads = [];
+  state.repliesByArg = {};
   pushUrl('?topic=' + id);
   render();
   const topicUnsub = fb.onSnapshot(fb.doc(db, 'topics', id), d => {
@@ -687,7 +824,7 @@ async function addArg(side){
     if(!text){ state.submittingArg[side] = false; inputEl.style.borderColor = 'var(--con)'; inputEl.focus(); return; }
     if(btn){ btn.disabled = true; btn.textContent = 'Posting…'; }
     await fb.addDoc(fb.collection(db, 'topics', state.currentTopicId, 'arguments'), {
-      side, text, votes: 0, voterChoices: {},
+      side, text, votes: 0, voterChoices: {}, topicId: state.currentTopicId,
       author: state.user.displayName, authorUid: state.user.uid,
       createdAt: fb.serverTimestamp()
     });
@@ -741,6 +878,135 @@ async function voteTopic(topicId, direction, event){
   await castVote(ref, topic.voterChoices, direction);
 }
 
+function editArgument(argId){
+  const arg = state.currentArgs.find(a => a.id === argId);
+  if(!arg || !state.user || arg.authorUid !== state.user.uid) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `<div class="modal">
+    <h3>Edit your argument</h3>
+    <textarea id="edit-arg-text" rows="4" style="width:100%;font-family:'Public Sans',sans-serif;font-size:15px;padding:12px 14px;border:1.5px solid var(--hairline-strong);border-radius:10px;margin-bottom:18px;background:var(--paper);color:var(--ink);">${esc(arg.text)}</textarea>
+    <div class="modal-actions">
+      <button class="btn ghost" id="edit-arg-cancel">Cancel</button>
+      <button class="btn primary" id="edit-arg-save">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(backdrop);
+  const close = () => { if(document.body.contains(backdrop)) document.body.removeChild(backdrop); };
+  backdrop.querySelector('#edit-arg-cancel').onclick = close;
+  backdrop.querySelector('#edit-arg-save').onclick = async () => {
+    const newText = backdrop.querySelector('#edit-arg-text').value.trim();
+    if(!newText) return;
+    const saveBtn = backdrop.querySelector('#edit-arg-save');
+    saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+    try{
+      await fb.updateDoc(fb.doc(db, 'topics', state.currentTopicId, 'arguments', argId), { text: newText, editedAt: fb.serverTimestamp() });
+      close();
+      showToast('Argument updated');
+    }catch(e){
+      alert("Couldn't save that. Try again.");
+      saveBtn.disabled = false; saveBtn.textContent = 'Save';
+    }
+  };
+}
+
+async function deleteArgument(argId, side){
+  if(!confirm("Delete this argument? This can't be undone.")) return;
+  try{
+    await fb.deleteDoc(fb.doc(db, 'topics', state.currentTopicId, 'arguments', argId));
+    await fb.updateDoc(fb.doc(db, 'topics', state.currentTopicId), {
+      [side === 'pro' ? 'proCount' : 'conCount']: fb.increment(-1)
+    });
+    showToast('Argument deleted');
+  }catch(e){
+    alert("Couldn't delete that argument. Try again.");
+  }
+}
+
+function reportContent(type, targetId, contextId){
+  if(!requireAuth()) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `<div class="modal">
+    <h3>Report this ${esc(type)}</h3>
+    <label for="report-reason">What's wrong with it? (optional)</label>
+    <textarea id="report-reason" rows="3" placeholder="Briefly explain what's going on."></textarea>
+    <div class="modal-actions">
+      <button class="btn ghost" id="report-cancel">Cancel</button>
+      <button class="btn primary" id="report-submit">Submit report</button>
+    </div>
+  </div>`;
+  document.body.appendChild(backdrop);
+  const close = () => { if(document.body.contains(backdrop)) document.body.removeChild(backdrop); };
+  backdrop.querySelector('#report-cancel').onclick = close;
+  backdrop.querySelector('#report-submit').onclick = async () => {
+    const reason = backdrop.querySelector('#report-reason').value.trim();
+    const btn = backdrop.querySelector('#report-submit');
+    btn.disabled = true; btn.textContent = 'Submitting…';
+    try{
+      await fb.addDoc(fb.collection(db, 'reports'), {
+        type, targetId, contextId: contextId || null, reason: reason || null,
+        reporterUid: state.user.uid, reporterName: state.user.displayName, createdAt: fb.serverTimestamp()
+      });
+      close();
+      showToast('Report submitted — thank you');
+    }catch(e){
+      alert("Couldn't submit that report. Try again.");
+      btn.disabled = false; btn.textContent = 'Submit report';
+    }
+  };
+}
+
+/* ---------- replies to arguments ---------- */
+async function toggleReplies(argId){
+  if(state.openReplyThreads.includes(argId)){
+    state.openReplyThreads = state.openReplyThreads.filter(id => id !== argId);
+    render();
+    return;
+  }
+  state.openReplyThreads.push(argId);
+  render();
+  await loadReplies(argId);
+}
+
+async function loadReplies(argId){
+  try{
+    const snap = await fb.getDocs(fb.collection(db, 'topics', state.currentTopicId, 'arguments', argId, 'replies'));
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    list.sort((a, b) => {
+      const at = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : a.createdAt) : 0;
+      const bt = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : b.createdAt) : 0;
+      return at - bt;
+    });
+    state.repliesByArg[argId] = list;
+  }catch(e){
+    state.repliesByArg[argId] = [];
+  }
+  render();
+}
+
+async function addReply(argId){
+  if(!requireAuth()) return;
+  const input = document.getElementById('reply-input-' + argId);
+  if(!input) return;
+  const text = input.value.trim();
+  if(!text) return;
+  const btn = document.getElementById('reply-submit-' + argId);
+  if(btn){ btn.disabled = true; }
+  try{
+    await fb.addDoc(fb.collection(db, 'topics', state.currentTopicId, 'arguments', argId, 'replies'), {
+      text, author: state.user.displayName, authorUid: state.user.uid, createdAt: fb.serverTimestamp()
+    });
+    await fb.updateDoc(fb.doc(db, 'topics', state.currentTopicId, 'arguments', argId), { replyCount: fb.increment(1) });
+    input.value = '';
+    await loadReplies(argId);
+  }catch(e){
+    alert("Couldn't post that reply. Try again.");
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
 function shareTopic(){
   const url = location.origin + location.pathname + '?topic=' + state.currentTopicId;
   if(navigator.clipboard && navigator.clipboard.writeText){
@@ -770,7 +1036,7 @@ async function seedExampleDebate(){
     ];
     for(const a of fakeArgs){
       await fb.addDoc(fb.collection(db, 'topics', ref.id, 'arguments'), {
-        side: a.side, text: a.text, votes: a.votes, voterChoices: {},
+        side: a.side, text: a.text, votes: a.votes, voterChoices: {}, topicId: ref.id,
         author: a.author, authorUid: a.authorUid, createdAt: fb.serverTimestamp()
       });
     }
@@ -783,6 +1049,49 @@ async function seedExampleDebate(){
 
 /* ---------- messaging ---------- */
 function threadIdFor(uidA, uidB){ return [uidA, uidB].sort().join('_'); }
+
+/* ---------- blocking ---------- */
+async function loadMyBlocks(){
+  if(!state.user){ state.myBlocks = []; return; }
+  try{
+    const snap = await fb.getDocs(fb.query(fb.collection(db, 'blocks'), fb.where('blockerUid', '==', state.user.uid)));
+    state.myBlocks = snap.docs.map(d => d.data().blockedUid);
+  }catch(e){
+    state.myBlocks = [];
+  }
+}
+async function isBlockedByRecipient(otherUid){
+  try{
+    const snap = await fb.getDoc(fb.doc(db, 'blocks', otherUid + '_' + state.user.uid));
+    return snap.exists();
+  }catch(e){
+    return false;
+  }
+}
+async function blockUserProfile(uid, name){
+  if(!requireAuth()) return;
+  if(!confirm(`Block ${name}? They won't be able to message you anymore.`)) return;
+  try{
+    await fb.setDoc(fb.doc(db, 'blocks', state.user.uid + '_' + uid), {
+      blockerUid: state.user.uid, blockedUid: uid, createdAt: fb.serverTimestamp()
+    });
+    if(!state.myBlocks.includes(uid)) state.myBlocks.push(uid);
+    showToast('Blocked');
+    render();
+  }catch(e){
+    alert("Couldn't block that person. Try again.");
+  }
+}
+async function unblockUserProfile(uid){
+  try{
+    await fb.deleteDoc(fb.doc(db, 'blocks', state.user.uid + '_' + uid));
+    state.myBlocks = state.myBlocks.filter(u => u !== uid);
+    showToast('Unblocked');
+    render();
+  }catch(e){
+    alert("Couldn't unblock that person. Try again.");
+  }
+}
 
 async function ensureThread(otherUid, otherName, topicContext){
   const tid = threadIdFor(state.user.uid, otherUid);
@@ -801,6 +1110,10 @@ async function ensureThread(otherUid, otherName, topicContext){
 }
 
 async function sendThreadMessage(tid, otherUid, otherName, text){
+  const blocked = await isBlockedByRecipient(otherUid);
+  if(blocked){
+    const err = new Error('blocked'); err.code = 'blocked'; throw err;
+  }
   await fb.addDoc(fb.collection(db, 'threads', tid, 'messages'), {
     author: state.user.displayName, authorUid: state.user.uid, text, ts: fb.serverTimestamp()
   });
@@ -819,9 +1132,14 @@ async function challengeAuthor(argId){
   if(arg.authorUid === state.user.uid){ alert("That's your own argument."); return; }
   const mySide = arg.side === 'pro' ? 'con' : 'pro';
   const line = `Want to debate "${state.currentTopic.title}" one-on-one? I'll argue ${mySide}.`;
-  const tid = await ensureThread(arg.authorUid, arg.author, { id: state.currentTopic.id, title: state.currentTopic.title });
-  await sendThreadMessage(tid, arg.authorUid, arg.author, line);
-  await openChat(tid, arg.authorUid, arg.author);
+  try{
+    const tid = await ensureThread(arg.authorUid, arg.author, { id: state.currentTopic.id, title: state.currentTopic.title });
+    await sendThreadMessage(tid, arg.authorUid, arg.author, line);
+    await openChat(tid, arg.authorUid, arg.author);
+  }catch(e){
+    if(e.code === 'blocked') alert("You can't message this person right now.");
+    else alert("Couldn't start that conversation. Try again.");
+  }
 }
 
 async function startChallenge(){
@@ -862,7 +1180,8 @@ async function startChallenge(){
       await sendThreadMessage(tid, otherUid, otherName, line);
       await openChat(tid, otherUid, otherName);
     }catch(e){
-      errEl.textContent = "Couldn't send that. Try again."; errEl.style.display = 'block';
+      errEl.textContent = e.code === 'blocked' ? "You can't message this person right now." : "Couldn't send that. Try again.";
+      errEl.style.display = 'block';
     }
   };
   backdrop.querySelector('#choose-pro').onclick = () => go('pro');
@@ -920,10 +1239,25 @@ async function sendChatMsg(){
     await sendThreadMessage(state.currentThreadId, state.chatWithUid, state.chatWithName, text);
     input.value = '';
   }catch(e){
-    alert("Couldn't send that message. Try again.");
+    alert(e.code === 'blocked' ? "You can't message this person right now." : "Couldn't send that message. Try again.");
   }finally{
     state.submittingMsg = false;
     render();
+  }
+}
+
+async function deleteMessage(msgId){
+  if(!confirm('Unsend this message?')) return;
+  try{
+    await fb.deleteDoc(fb.doc(db, 'threads', state.currentThreadId, 'messages', msgId));
+    const remaining = (state.chatMessages || []).filter(m => m.id !== msgId);
+    const last = remaining[remaining.length - 1];
+    await fb.setDoc(fb.doc(db, 'threads', state.currentThreadId), {
+      lastText: last ? last.text : '',
+      lastAuthorUid: last ? last.authorUid : ''
+    }, { merge: true });
+  }catch(e){
+    alert("Couldn't unsend that. Try again.");
   }
 }
 
@@ -931,7 +1265,7 @@ async function sendChatMsg(){
 function goList(){
   cleanupTopicSubs();
   cleanupChatSubs();
-  state.view = 'list'; state.currentTopicId = null; state.currentTopic = null; state.currentArgs = [];
+  state.view = 'list'; state.currentTopicId = null; state.currentTopic = null; state.currentArgs = []; state.editingTopicId = null;
   pushUrl('');
   render();
 }
@@ -939,6 +1273,7 @@ function goNew(){
   if(!requireAuth()) return;
   cleanupTopicSubs();
   state.view = 'new';
+  state.editingTopicId = null;
   pushUrl('');
   render();
 }
@@ -954,6 +1289,7 @@ async function openProfile(uid){
   state.viewingProfile = null;
   state.viewingProfileLoaded = false;
   state.viewingProfileDebates = [];
+  state.viewingProfileArguments = [];
   pushUrl('');
   render();
   try{
@@ -976,6 +1312,21 @@ async function openProfile(uid){
     state.viewingProfileDebates = list;
   }catch(e){
     state.viewingProfileDebates = [];
+  }
+  render();
+  try{
+    const q2 = fb.query(fb.collectionGroup(db, 'arguments'), fb.where('authorUid', '==', uid), fb.limit(50));
+    const snap2 = await fb.getDocs(q2);
+    const list2 = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
+    list2.sort((a, b) => {
+      const at = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : a.createdAt) : 0;
+      const bt = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : b.createdAt) : 0;
+      return bt - at;
+    });
+    state.viewingProfileArguments = list2;
+  }catch(e){
+    // collection-group queries need a Firestore index the first time — see console for a one-click link
+    state.viewingProfileArguments = [];
   }
   render();
 }
@@ -1074,7 +1425,10 @@ async function submitProfile(){
       displayName: state.user.displayName, email: state.user.email,
       photoURL, bio: bio || null,
       gender: gender || null, occupation: occupation || null,
-      political: (political && political !== 'Prefer not to say') ? political : null
+      political: (political && political !== 'Prefer not to say') ? political : null,
+      showGender: document.getElementById('p-gender-visible').checked,
+      showOccupation: document.getElementById('p-occupation-visible').checked,
+      showPolitical: document.getElementById('p-political-visible').checked
     };
     await fb.setDoc(fb.doc(db, 'users', state.user.uid), saved, { merge: true });
     state.pendingPhotoDataUrl = null;
@@ -1156,6 +1510,7 @@ function renderHeader(){
           ${state.userMenuOpen ? `<div class="user-menu-dropdown">
             <button onclick="toggleUserMenu();openProfile('${state.user.uid}')">View profile</button>
             <button onclick="toggleUserMenu();goEditProfile()">Edit profile</button>
+            <button onclick="toggleNotifications()">${state.notificationsEnabled ? 'Notifications: on' : 'Enable notifications'}</button>
             <div class="user-menu-divider"></div>
             <button onclick="toggleUserMenu();logOut()">Log out</button>
           </div>` : ''}
@@ -1175,6 +1530,11 @@ function renderHeader(){
 }
 
 function renderList(app){
+  const existingSearch = document.getElementById('search-input');
+  const preservedSearch = existingSearch ? existingSearch.value : state.searchQuery;
+  const searchFocused = existingSearch && existingSearch === document.activeElement;
+  const searchSel = existingSearch ? existingSearch.selectionStart : null;
+
   const filtered = state.categoryFilter === 'all' ? state.topics : state.topics.filter(t => t.category === state.categoryFilter);
   const sorted = [...filtered].sort((a, b) => {
     if(state.sortMode === 'top') return (b.votes||0) - (a.votes||0);
@@ -1195,7 +1555,7 @@ function renderList(app){
       const proPct = total ? Math.round((t.proCount/total)*100) : 50;
       const myChoice = state.user && t.voterChoices ? t.voterChoices[state.user.uid] : null;
       const isTrending = trendingCutoff >= 5 && (t.votes||0) === trendingCutoff;
-      return `<div class="row" onclick="openTopic('${t.id}')">
+      return `<div class="row" data-title="${esc((t.title||'').toLowerCase())}" onclick="openTopic('${t.id}')">
         <div style="display:flex;gap:16px;align-items:flex-start;">
           <div class="vote-widget" style="flex-direction:column;flex-shrink:0;margin-top:2px;" onclick="event.stopPropagation()">
             <button class="vote-arrow up ${myChoice==='up'?'active':''}" onclick="voteTopic('${t.id}','up',event)">&#9650;</button>
@@ -1239,6 +1599,8 @@ function renderList(app){
         <div class="stat"><span class="num">${totalVotes}</span><span class="lbl">votes cast</span></div>
       </div>
     </div>
+    ${renderVerifyBanner()}
+    <input type="text" id="search-input" class="search-input" placeholder="Search debates by title…" oninput="filterRowsBySearch(this.value)" style="margin-bottom:18px;">
     <div class="list-controls">
       <div class="category-filters">${chips}</div>
       <div class="sort-toggle">
@@ -1249,9 +1611,27 @@ function renderList(app){
     ${rows}
     ${renderFooter()}
   `;
+
+  const newSearch = document.getElementById('search-input');
+  if(newSearch){
+    newSearch.value = preservedSearch;
+    if(preservedSearch) filterRowsBySearch(preservedSearch, true);
+    if(searchFocused){
+      newSearch.focus();
+      try{ newSearch.selectionStart = newSearch.selectionEnd = searchSel; }catch(e){}
+    }
+  }
 }
 function setCategoryFilter(c){ state.categoryFilter = c; render(); }
 function setSortMode(m){ state.sortMode = m; render(); }
+function filterRowsBySearch(q, skipStateUpdate){
+  if(!skipStateUpdate) state.searchQuery = q;
+  const query = (q || '').trim().toLowerCase();
+  document.querySelectorAll('.row[data-title]').forEach(row => {
+    const title = row.getAttribute('data-title') || '';
+    row.style.display = (!query || title.includes(query)) ? '' : 'none';
+  });
+}
 
 function renderFooter(){
   return `<div class="site-footer">
@@ -1261,21 +1641,23 @@ function renderFooter(){
 }
 
 function renderNew(app){
-  const options = CATEGORIES.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  const isEdit = !!state.editingTopicId;
+  const existing = isEdit && state.currentTopic && state.currentTopic.id === state.editingTopicId ? state.currentTopic : {};
+  const options = CATEGORIES.map(c => `<option value="${esc(c)}" ${existing.category === c ? 'selected' : ''}>${esc(c)}</option>`).join('');
   app.innerHTML = renderHeader() + `
-    <button class="back" onclick="goList()">&larr; all debates</button>
+    <button class="back" onclick="${isEdit ? `openTopic('${state.editingTopicId}')` : 'goList()'}">&larr; ${isEdit ? 'back to debate' : 'all debates'}</button>
     <div class="panel">
-      <h2>Start a debate</h2>
+      <h2>${isEdit ? 'Edit debate' : 'Start a debate'}</h2>
       <label for="t-title">Topic</label>
-      <input type="text" id="t-title" placeholder="e.g. Remote work is better than office work">
+      <input type="text" id="t-title" placeholder="e.g. Remote work is better than office work" value="${esc(existing.title || '')}">
       <label for="t-category">Category</label>
       <select id="t-category">${options}</select>
       <label for="t-desc">Context (optional)</label>
-      <textarea id="t-desc" rows="3" placeholder="A sentence or two framing the debate."></textarea>
+      <textarea id="t-desc" rows="3" placeholder="A sentence or two framing the debate.">${esc(existing.description || '')}</textarea>
       <div id="t-err" class="err" style="display:none;"></div>
       <div class="form-actions">
-        <button class="btn primary" id="create-topic-btn" onclick="submitTopic()">Create debate</button>
-        <button class="btn ghost" onclick="goList()">Cancel</button>
+        <button class="btn primary" id="create-topic-btn" onclick="submitTopic()">${isEdit ? 'Save changes' : 'Create debate'}</button>
+        <button class="btn ghost" onclick="${isEdit ? `openTopic('${state.editingTopicId}')` : 'goList()'}">Cancel</button>
       </div>
     </div>
     ${renderFooter()}
@@ -1291,13 +1673,41 @@ function renderTopic(app){
   const args = state.currentArgs;
   const pro = args.filter(a => a.side === 'pro');
   const con = args.filter(a => a.side === 'con');
+  const isTopicOwner = state.user && topic.createdBy === state.user.uid;
+
+  // preserve any in-progress typing (pro/con inputs, open reply boxes) across background re-renders
+  const preserveIds = ['pro-input', 'con-input', ...state.openReplyThreads.map(id => 'reply-input-' + id)];
+  const preserved = {};
+  preserveIds.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) preserved[id] = { value: el.value, focused: el === document.activeElement, sel: el.selectionStart };
+  });
+
+  const repliesHtml = (argId) => {
+    if(!state.openReplyThreads.includes(argId)) return '';
+    const replies = state.repliesByArg[argId];
+    const list = replies === undefined
+      ? `<p class="replies-loading">loading replies…</p>`
+      : (replies.length
+          ? replies.map(r => `<div class="reply-item"><span class="author-link" onclick="openProfile('${r.authorUid}')">${esc(r.author||'anonymous')}</span><p>${esc(r.text)}</p></div>`).join('')
+          : `<p class="replies-empty">No replies yet.</p>`);
+    return `<div class="replies-box">
+      ${list}
+      ${state.user ? `<div class="reply-input-row">
+        <textarea id="reply-input-${argId}" rows="2" placeholder="Reply to this argument…"></textarea>
+        <button class="btn ghost" id="reply-submit-${argId}" onclick="addReply('${argId}')">Reply</button>
+      </div>` : ''}
+    </div>`;
+  };
 
   const cardHtml = (a, rank) => {
     const myChoice = state.user && a.voterChoices ? a.voterChoices[state.user.uid] : null;
+    const isOwner = state.user && a.authorUid === state.user.uid;
     const canChallenge = a.authorUid && (!state.user || a.authorUid !== state.user.uid);
+    const replyCount = a.replyCount || 0;
     return `<div class="arg-card ${a.side}">
       <p class="arg-rank">${rank}</p>
-      <p class="arg-text">${esc(a.text)}</p>
+      <p class="arg-text">${esc(a.text)}${a.editedAt ? ' <span class="edited-tag">(edited)</span>' : ''}</p>
       <p class="arg-meta">${a.author && a.authorUid ? `<span class="author-link" onclick="event.stopPropagation();openProfile('${a.authorUid}')">${esc(a.author)}</span>` : (a.author ? esc(a.author) : 'anonymous')} — ${timeAgo(a.createdAt)}</p>
       <div class="arg-foot">
         <div class="vote-widget">
@@ -1307,6 +1717,13 @@ function renderTopic(app){
         </div>
         ${canChallenge ? `<button class="debate-btn" onclick="challengeAuthor('${a.id}')">Debate</button>` : ''}
       </div>
+      <div class="arg-actions-row">
+        <button class="mini-link" onclick="toggleReplies('${a.id}')">${replyCount ? `${replyCount} repl${replyCount===1?'y':'ies'}` : 'Reply'}</button>
+        ${isOwner
+          ? `<button class="mini-link" onclick="editArgument('${a.id}')">Edit</button><button class="mini-link mini-link-danger" onclick="deleteArgument('${a.id}','${a.side}')">Delete</button>`
+          : (state.user ? `<button class="mini-link" onclick="reportContent('argument','${a.id}','${topic.id}')">Report</button>` : '')}
+      </div>
+      ${repliesHtml(a.id)}
     </div>`;
   };
 
@@ -1319,13 +1736,15 @@ function renderTopic(app){
         <h1>${esc(topic.title)}</h1>
         ${topic.description ? `<p>${esc(topic.description)}</p>` : ''}
       </div>
-      <div style="display:flex;gap:16px;align-items:center;flex-shrink:0;">
+      <div style="display:flex;gap:10px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
         <div class="vote-widget">
           <button class="vote-arrow up ${myTopicChoice==='up'?'active':''}" onclick="voteTopic('${topic.id}','up')">&#9650;</button>
           <span class="vote-count">${topic.votes||0}</span>
           <button class="vote-arrow down ${myTopicChoice==='down'?'active':''}" onclick="voteTopic('${topic.id}','down')">&#9660;</button>
         </div>
         <button class="share-btn" onclick="shareTopic()">Share</button>
+        ${isTopicOwner ? `<button class="share-btn" onclick="goEditTopic()">Edit</button><button class="share-btn share-btn-danger" onclick="deleteTopic('${topic.id}')">Delete</button>`
+                       : (state.user ? `<button class="share-btn" onclick="reportContent('debate','${topic.id}','${topic.id}')">Report</button>` : '')}
       </div>
     </div>
     <div class="tally">
@@ -1355,6 +1774,17 @@ function renderTopic(app){
     </div>
     ${renderFooter()}
   `;
+
+  Object.keys(preserved).forEach(id => {
+    const el = document.getElementById(id);
+    if(el){
+      el.value = preserved[id].value;
+      if(preserved[id].focused){
+        el.focus();
+        try{ el.selectionStart = el.selectionEnd = preserved[id].sel; }catch(e){}
+      }
+    }
+  });
 }
 
 function renderInbox(app){
@@ -1444,7 +1874,8 @@ function renderChat(app){
         if(prevSame) classes.push('msg-cont');
         if(isNew) classes.push('msg-new');
         const timeHtml = nextSame ? '' : `<div class="m-time">${timeAgo(m.ts)}${showSeen ? ' · Seen' : ''}</div>`;
-        const bubble = `<div class="${classes.join(' ')}">${esc(m.text)}${timeHtml}</div>`;
+        const deleteBtn = mine ? `<button class="msg-delete" title="Unsend" onclick="deleteMessage('${m.id}')">&times;</button>` : '';
+        const bubble = `<div class="${classes.join(' ')}">${esc(m.text)}${timeHtml}${deleteBtn}</div>`;
         if(mine) return bubble;
         const avatarSlot = !prevSame
           ? `<div class="avatar avatar-sm" style="background:${av.text};color:#fff;">${esc(initials(state.chatWithName))}</div>`
@@ -1457,10 +1888,11 @@ function renderChat(app){
     <button class="back" onclick="goInbox()">&larr; messages</button>
     <div class="chat-head" style="background:${av.bg};">
       <div class="avatar avatar-lg" style="background:${av.text};color:#fff;cursor:pointer;" onclick="openProfile('${state.chatWithUid}')">${esc(initials(state.chatWithName))}</div>
-      <div>
+      <div style="flex:1;">
         <h1 style="cursor:pointer;" onclick="openProfile('${state.chatWithUid}')">${esc(state.chatWithName)}</h1>
         ${t.topicTitle && t.topicId ? `<button class="topic-chip" onclick="openTopic('${t.topicId}')">Debating: ${esc(t.topicTitle)}</button>` : ''}
       </div>
+      <button class="topic-chip" onclick="blockUserProfile('${state.chatWithUid}', '${esc(state.chatWithName).replace(/'/g,"&#39;")}')">Block</button>
     </div>
     <div class="thread">${msgsHtml}</div>
     <div class="msg-input-row">
@@ -1498,15 +1930,16 @@ function renderProfile(app){
   const uid = state.viewingProfileUid;
   const p = state.viewingProfile;
   const isMe = state.user && state.user.uid === uid;
+  const isBlocked = state.myBlocks.includes(uid);
   if(!state.viewingProfileLoaded){
     app.innerHTML = renderHeader() + `<div class="loading">loading profile…</div>`;
     return;
   }
   const name = (p && p.displayName) || (isMe ? state.user.displayName : 'This debater');
   const fields = [];
-  if(p && p.occupation) fields.push({ label: 'Occupation', value: p.occupation });
-  if(p && p.gender) fields.push({ label: 'Gender', value: p.gender });
-  if(p && p.political) fields.push({ label: 'Political leaning', value: p.political });
+  if(p && p.occupation && p.showOccupation !== false) fields.push({ label: 'Occupation', value: p.occupation });
+  if(p && p.gender && p.showGender !== false) fields.push({ label: 'Gender', value: p.gender });
+  if(p && p.political && p.showPolitical !== false) fields.push({ label: 'Political leaning', value: p.political });
 
   const debates = state.viewingProfileDebates || [];
   const debatesHtml = debates.length
@@ -1527,6 +1960,16 @@ function renderProfile(app){
       }).join('')
     : `<div class="empty"><h3>${isMe ? "You haven't" : `${esc(name)} hasn't`} started a debate yet</h3></div>`;
 
+  const madeArgs = state.viewingProfileArguments || [];
+  const argsHtml = madeArgs.length
+    ? madeArgs.map(a => `<div class="row" onclick="openTopic('${a.topicId}')">
+        <div>
+          <p class="row-title" style="font-size:16px;">${esc(a.text.length > 140 ? a.text.slice(0,140) + '…' : a.text)}</p>
+          <p class="row-desc">${a.side === 'pro' ? 'Pro' : 'Con'} argument &middot; ${a.votes||0} votes</p>
+        </div>
+      </div>`).join('')
+    : '';
+
   app.innerHTML = renderHeader() + `
     <button class="back" onclick="goList()">&larr; all debates</button>
     <div class="profile-card">
@@ -1535,11 +1978,18 @@ function renderProfile(app){
         <h1>${esc(name)}</h1>
         ${p && p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : (isMe ? `<p class="profile-bio profile-bio-empty">You haven't added a bio yet.</p>` : '')}
         ${fields.length ? `<div class="profile-fields">${fields.map(f => `<div class="profile-field"><span class="pf-label">${esc(f.label)}</span><span class="pf-value">${esc(f.value)}</span></div>`).join('')}</div>` : ''}
-        ${isMe ? `<button class="btn primary" onclick="goEditProfile()">Edit your profile</button>` : ''}
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          ${isMe ? `<button class="btn primary" onclick="goEditProfile()">Edit your profile</button>` : ''}
+          ${!isMe && state.user ? (isBlocked
+            ? `<button class="btn ghost" onclick="unblockUserProfile('${uid}')">Unblock</button>`
+            : `<button class="btn ghost" onclick="blockUserProfile('${uid}', '${esc(name).replace(/'/g,"&#39;")}')">Block</button>`)
+            : ''}
+        </div>
       </div>
     </div>
     <h2 class="section-heading">${isMe ? 'Debates you started' : `Debates ${esc(name)} started`}</h2>
     ${debatesHtml}
+    ${argsHtml ? `<h2 class="section-heading" style="margin-top:32px;">${isMe ? 'Arguments you\'ve made' : `Arguments ${esc(name)} has made`}</h2>${argsHtml}` : ''}
     ${renderFooter()}
   `;
 }
@@ -1572,21 +2022,24 @@ function renderEditProfile(app){
       </div>
 
       <div class="form-section">
-        <h3 class="form-section-title">Details <span class="form-section-sub">(all optional)</span></h3>
+        <h3 class="form-section-title">Details <span class="form-section-sub">(all optional, and each has its own visibility toggle)</span></h3>
         <div class="form-grid-2">
           <div>
             <label for="p-occupation">Occupation</label>
             <input type="text" id="p-occupation" placeholder="e.g. Teacher, Software Engineer" value="${esc(p.occupation || '')}">
+            <label class="visibility-toggle"><input type="checkbox" id="p-occupation-visible" ${p.showOccupation !== false ? 'checked' : ''}> Show on my public profile</label>
           </div>
           <div>
             <label for="p-gender">Gender</label>
             <input type="text" id="p-gender" placeholder="e.g. Woman, Man, Non-binary" value="${esc(p.gender || '')}">
+            <label class="visibility-toggle"><input type="checkbox" id="p-gender-visible" ${p.showGender !== false ? 'checked' : ''}> Show on my public profile</label>
           </div>
         </div>
         <label>Political spectrum</label>
         <div class="chip-select" id="p-political-chips">
           ${POLITICAL_OPTIONS.map(o => `<button type="button" class="option-chip ${state.selectedPolitical===o?'active':''}" onclick="selectPolitical('${esc(o)}', this)">${esc(o)}</button>`).join('')}
         </div>
+        <label class="visibility-toggle"><input type="checkbox" id="p-political-visible" ${p.showPolitical !== false ? 'checked' : ''}> Show on my public profile</label>
       </div>
 
       <div class="form-actions">
@@ -1603,7 +2056,10 @@ Object.assign(window, {
   goList, goNew, goInbox, openTopic, openChat, submitTopic, addArg, vote, voteTopic,
   shareTopic, challengeAuthor, startChallenge, sendChatMsg, setCategoryFilter, setSortMode,
   openAuthModal, logOut, seedExampleDebate, openProfile, goEditProfile, submitProfile,
-  handlePhotoFile, removePhoto, selectPolitical, toggleUserMenu
+  handlePhotoFile, removePhoto, selectPolitical, toggleUserMenu,
+  goEditTopic, deleteTopic, editArgument, deleteArgument, reportContent, toggleReplies, addReply,
+  deleteMessage, blockUserProfile, unblockUserProfile, resendVerification, dismissVerifyBanner, filterRowsBySearch,
+  toggleNotifications
 });
 
 /* ---------- init ---------- */
@@ -1616,14 +2072,18 @@ if(NEEDS_SETUP){
   render();
 } else {
   fb.onAuthStateChanged(auth, (user) => {
-    state.user = user ? { uid: user.uid, displayName: user.displayName, email: user.email } : null;
+    state.user = user ? { uid: user.uid, displayName: user.displayName, email: user.email, emailVerified: !!user.emailVerified } : null;
     state.myProfile = null;
     state.userMenuOpen = false;
+    state.verificationBannerDismissed = false;
     if(user){
       fb.getDoc(fb.doc(db, 'users', user.uid)).then(snap => {
         state.myProfile = snap.exists() ? snap.data() : {};
         render();
       }).catch(() => {});
+      loadMyBlocks().then(render);
+    } else {
+      state.myBlocks = [];
     }
     subscribeInbox();
     render();

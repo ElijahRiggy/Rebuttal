@@ -53,28 +53,55 @@ service cloud.firestore {
     match /topics/{topicId} {
       allow read: if true;
       allow create: if request.auth != null;
-      allow update: if request.auth != null;
+      allow update: if request.auth != null && (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes','voterChoices','proCount','conCount']) ||
+        (request.auth.uid == resource.data.createdBy &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','description','category']))
+      );
+      allow delete: if request.auth != null && request.auth.uid == resource.data.createdBy;
+
       match /arguments/{argId} {
         allow read: if true;
         allow create: if request.auth != null;
-        allow update: if request.auth != null;
+        allow update: if request.auth != null && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes','voterChoices','replyCount']) ||
+          (request.auth.uid == resource.data.authorUid &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text','editedAt']))
+        );
+        allow delete: if request.auth != null && request.auth.uid == resource.data.authorUid;
+
+        match /replies/{replyId} {
+          allow read: if true;
+          allow create: if request.auth != null;
+          allow delete: if request.auth != null && request.auth.uid == resource.data.authorUid;
+        }
       }
     }
     match /threads/{threadId} {
       allow read, write: if request.auth != null;
       match /messages/{msgId} {
-        allow read, write: if request.auth != null;
+        allow read, create: if request.auth != null;
+        allow delete: if request.auth != null && request.auth.uid == resource.data.authorUid;
       }
     }
     match /users/{uid} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == uid;
     }
+    match /reports/{reportId} {
+      allow read: if false;
+      allow create: if request.auth != null;
+    }
+    match /blocks/{blockId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.blockerUid;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.blockerUid;
+    }
   }
 }
 ```
 
-   This lets anyone read topics/arguments (so debates are public), but only logged-in users can post, vote, or message. Note: thread/message reads are open to any logged-in user rather than locked to just the two participants — Firestore's query rules make strict per-thread privacy more involved, so this is a pragmatic simplification, not bank-grade privacy.
+   This is a real ownership model now, not just a UI-level suggestion: editing/deleting a topic or argument requires the request to actually come from its creator (Firestore checks this server-side, not just "does the button show up"). Votes and reply counts stay open to any logged-in user since that's how voting works — anyone updating someone else's vote count is legitimate. Reports write-only (nobody can read others' reports from the client — you'll see them yourself in the Firestore **Data** tab in the Firebase console, which uses your own admin access and bypasses these rules entirely). Blocks are enforced by the app before sending a message, not by these rules — a technically sophisticated user could bypass a client-side check, so treat blocking as a deterrent, not a guarantee. Thread/message reads remain open to any logged-in user rather than locked to just the two participants, for the same reason as before — genuinely private threads need more complex rules than Firestore's query model makes convenient.
 
 6. Open `index.html`, find the `firebaseConfig` object near the top of the `<script type="module">` block, and replace the placeholder values with your real ones from step 2.
 7. Commit and push — Vercel/GitHub Pages redeploys automatically.
@@ -87,3 +114,15 @@ Until you do this, the live site shows a plain "connect Firebase" setup screen i
 - Voting, arguments, and topics sync live across everyone's browsers.
 - A **Share** button on each debate copies a direct link (`?topic=...`) that opens straight to that debate for anyone.
 - Messaging is real — if you challenge someone by name and they're logged in on their own device, they'll see it in their inbox.
+
+### Trust & safety features
+- **Edit/delete** your own topics, arguments, and messages.
+- **Report** any topic or argument — reports go to a `reports` collection you can review yourself in the Firebase console's **Data** tab (there's no in-app admin panel, by design — the console is your admin panel).
+- **Block** — from someone's profile or a chat header. This stops them from messaging you (checked before every send), but it's enforced by the app, not by Firestore rules — treat it as a strong deterrent, not an unbreakable wall.
+- **Email verification** — sent automatically on signup, with a dismissible banner and resend option. Doesn't block any actions, just nudges toward real accounts.
+- **Per-field profile privacy** — gender, occupation, and political leaning each have their own visibility toggle in Edit Profile.
+
+### A couple of honest limitations
+- **"Arguments you've made" on profiles** uses a Firestore collection-group query. The very first time it runs, Firestore may need you to create an index for it — if that section doesn't load, open your browser's console (F12), and Firebase will print a one-click link to create the index. You only ever have to do this once.
+- **Link previews (Open Graph tags)** are static and site-wide — every shared link shows the same generic "Rebuttal — pick a side" preview, not a per-debate one. A single static HTML file can't generate a different preview per URL; that needs a server, which is outside what a free static-hosting setup like this can do.
+- **Browser notifications** (toggle in your profile menu) only fire while this tab is open somewhere in your browser (even in the background) — not when the browser or tab is fully closed. True push-when-closed notifications need Firebase Cloud Functions, which requires upgrading to Firebase's paid Blaze plan even though actual usage would stay free — so this wasn't implemented.
