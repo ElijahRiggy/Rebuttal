@@ -128,6 +128,8 @@
 
   .empty{padding:72px 40px;text-align:center;color:var(--ink-soft);background:var(--surface);border-radius:16px;border:1px dashed var(--hairline-strong);}
   .empty h3{font-family:'Manrope',sans-serif;font-weight:800;font-size:22px;color:var(--ink);margin-bottom:8px;}
+  .empty-icon{margin-bottom:14px;opacity:.5;}
+  .empty-icon svg{width:44px;height:44px;}
 
   .banner{
     display:flex;align-items:center;justify-content:space-between;gap:12px;
@@ -271,36 +273,47 @@
 
   /* Inbox / profile list */
   .thread-row{
-    display:flex;align-items:center;gap:16px;padding:20px 22px;border-radius:14px;
-    background:var(--surface);border:1px solid var(--hairline);margin-bottom:10px;cursor:pointer;
-    transition:box-shadow .15s,transform .15s;
+    display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:14px;
+    background:var(--surface);border:1px solid var(--hairline);border-left:3px solid transparent;margin-bottom:10px;cursor:pointer;
+    transition:box-shadow .15s,transform .15s,background .15s;
   }
   .thread-row:hover{box-shadow:var(--shadow-sm);transform:translateY(-1px);}
+  .thread-row.unread-row{background:var(--surface-sunken);}
+  .thread-row.row-in{animation:rowIn .35s cubic-bezier(.2,.8,.2,1) both;}
+  @keyframes rowIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
   .avatar{
-    width:46px;height:46px;border-radius:50%;flex-shrink:0;
+    border-radius:50%;flex-shrink:0;
     display:flex;align-items:center;justify-content:center;
     font-family:'Manrope',sans-serif;font-weight:800;font-size:16px;
+    width:46px;height:46px;
   }
+  .avatar-lg{width:52px;height:52px;font-size:19px;}
+  .avatar-sm{width:28px;height:28px;font-size:11px;flex-shrink:0;}
+  .avatar-sm-spacer{width:28px;flex-shrink:0;}
   .thread-info{flex:1;min-width:0;}
   .thread-top{display:flex;justify-content:space-between;gap:10px;}
   .thread-name{font-family:'Manrope',sans-serif;font-size:16.5px;font-weight:700;margin:0;}
   .thread-time{font-size:12.5px;color:var(--ink-mute);white-space:nowrap;font-weight:500;}
+  .thread-topic{font-size:12px;color:var(--wine);font-weight:600;margin:2px 0 0;}
   .thread-preview{font-size:14px;color:var(--ink-soft);margin:3px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .thread-preview.unread{color:var(--ink);font-weight:600;}
   .unread-dot{width:9px;height:9px;border-radius:50%;background:var(--wine);flex-shrink:0;animation:unreadPulse 1.8s ease-in-out infinite;}
   @keyframes unreadPulse{0%,100%{box-shadow:0 0 0 0 rgba(122,35,51,.35);}50%{box-shadow:0 0 0 5px rgba(122,35,51,0);}}
 
   /* Chat view */
-  .chat-head{display:flex;align-items:center;gap:14px;margin-bottom:26px;}
-  .chat-head .avatar{width:42px;height:42px;font-size:15px;}
-  .chat-head h1{font-family:'Manrope',sans-serif;font-size:25px;font-weight:800;margin:0;flex:1;letter-spacing:-0.01em;}
+  .chat-head{display:flex;align-items:center;gap:16px;margin-bottom:28px;padding:18px 22px;border-radius:16px;}
+  .chat-head h1{font-family:'Manrope',sans-serif;font-size:23px;font-weight:800;margin:0 0 4px;letter-spacing:-0.01em;}
+  .topic-chip{font-family:'Public Sans',sans-serif;font-size:12px;font-weight:700;background:rgba(255,255,255,.65);border:none;border-radius:14px;padding:5px 13px;cursor:pointer;color:var(--ink);}
+  .topic-chip:hover{background:rgba(255,255,255,.9);}
   .thread{display:flex;flex-direction:column;margin-bottom:22px;min-height:140px;}
+  .msg-row-theirs{display:flex;align-items:flex-end;gap:8px;align-self:flex-start;max-width:78%;margin-bottom:3px;}
+  .msg-row-theirs .msg{margin-bottom:0;}
   .msg{max-width:70%;padding:12px 17px;border-radius:16px;font-size:15px;line-height:1.55;margin-bottom:14px;box-shadow:var(--shadow-sm);}
   .msg.msg-mid{margin-bottom:3px;}
   .msg .m-time{font-size:11px;margin-top:6px;opacity:.6;}
   .msg.mine{align-self:flex-end;background:var(--ink);color:#fff;border-bottom-right-radius:4px;}
   .msg.mine.msg-cont{border-top-right-radius:4px;}
-  .msg.theirs{align-self:flex-start;background:var(--surface);border:1px solid var(--hairline);color:var(--ink);border-bottom-left-radius:4px;}
+  .msg.theirs{background:var(--surface);border:1px solid var(--hairline);color:var(--ink);border-bottom-left-radius:4px;}
   .msg.theirs.msg-cont{border-top-left-radius:4px;}
   .msg.msg-new{animation:msgIn .32s cubic-bezier(.2,.8,.2,1);}
   @keyframes msgIn{from{opacity:0;transform:translateY(10px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);}}
@@ -359,7 +372,7 @@ const state = {
   topics: [], categoryFilter: 'all', sortMode: 'newest',
   currentTopicId: null, currentTopic: null, currentArgs: [],
   threads: [], currentThreadId: null, currentThread: null, chatWithUid: null, chatWithName: null, chatMessages: [],
-  chatAutoFocusPending: false, lastRenderedMsgCount: -1,
+  chatAutoFocusPending: false, lastRenderedMsgCount: -1, inboxHasLoadedOnce: false,
   submittingTopic: false, submittingArg: { pro: false, con: false }, submittingMsg: false, submittingAuth: false,
   topicUnsubs: [], chatUnsubs: [], globalUnsubs: [],
   toastMsg: null, toastTimer: null
@@ -571,6 +584,7 @@ async function submitTopic(){
 
 async function openTopic(id){
   cleanupTopicSubs();
+  cleanupChatSubs();
   state.currentTopicId = id;
   state.currentTopic = null;
   state.currentArgs = [];
@@ -697,7 +711,7 @@ async function seedExampleDebate(){
 /* ---------- messaging ---------- */
 function threadIdFor(uidA, uidB){ return [uidA, uidB].sort().join('_'); }
 
-async function ensureThread(otherUid, otherName){
+async function ensureThread(otherUid, otherName, topicContext){
   const tid = threadIdFor(state.user.uid, otherUid);
   const ref = fb.doc(db, 'threads', tid);
   const snap = await fb.getDoc(ref);
@@ -705,7 +719,9 @@ async function ensureThread(otherUid, otherName){
     await fb.setDoc(ref, {
       participantUids: [state.user.uid, otherUid],
       participantNames: { [state.user.uid]: state.user.displayName, [otherUid]: otherName },
-      lastText: '', lastAuthorUid: '', lastTs: fb.serverTimestamp(), createdAt: fb.serverTimestamp()
+      lastText: '', lastAuthorUid: '', lastTs: fb.serverTimestamp(), createdAt: fb.serverTimestamp(),
+      topicId: topicContext ? topicContext.id : null,
+      topicTitle: topicContext ? topicContext.title : null
     });
   }
   return tid;
@@ -730,7 +746,7 @@ async function challengeAuthor(argId){
   if(arg.authorUid === state.user.uid){ alert("That's your own argument."); return; }
   const mySide = arg.side === 'pro' ? 'con' : 'pro';
   const line = `Want to debate "${state.currentTopic.title}" one-on-one? I'll argue ${mySide}.`;
-  const tid = await ensureThread(arg.authorUid, arg.author);
+  const tid = await ensureThread(arg.authorUid, arg.author, { id: state.currentTopic.id, title: state.currentTopic.title });
   await sendThreadMessage(tid, arg.authorUid, arg.author, line);
   await openChat(tid, arg.authorUid, arg.author);
 }
@@ -769,7 +785,7 @@ async function startChallenge(){
       const otherUid = snap.docs[0].id;
       close();
       const line = `Want to debate "${topic.title}" one-on-one? I'll argue ${side}.`;
-      const tid = await ensureThread(otherUid, otherName);
+      const tid = await ensureThread(otherUid, otherName, { id: topic.id, title: topic.title });
       await sendThreadMessage(tid, otherUid, otherName, line);
       await openChat(tid, otherUid, otherName);
     }catch(e){
@@ -784,6 +800,7 @@ async function goInbox(){
   if(!requireAuth()) return;
   cleanupChatSubs();
   state.view = 'inbox';
+  state.inboxHasLoadedOnce = false;
   pushUrl('');
   render();
 }
@@ -1114,30 +1131,38 @@ function renderInbox(app){
     const bt = b.lastTs ? (b.lastTs.toMillis ? b.lastTs.toMillis() : b.lastTs) : 0;
     return bt - at;
   });
+  const isFirstLoad = !state.inboxHasLoadedOnce;
   let rows;
   if(!threads.length){
-    rows = `<div class="empty"><h3>No conversations yet</h3><p>Hit "Debate" under someone's argument, or "Message someone about this" on any topic.</p></div>`;
+    rows = `<div class="empty">
+      <div class="empty-icon"><svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 12C8 9.79 9.79 8 12 8H36C38.21 8 40 9.79 40 12V30C40 32.21 38.21 34 36 34H16L8 41V12Z" stroke="var(--wine)" stroke-width="2.5" stroke-linejoin="round"/></svg></div>
+      <h3>No conversations yet</h3>
+      <p>Hit "Debate" under someone's argument, or "Message someone about this" on any topic.</p>
+    </div>`;
   } else {
-    rows = threads.map(t => {
+    rows = threads.map((t, i) => {
       const otherUid = (t.participantUids || []).find(u => u !== state.user.uid);
       const otherName = (t.participantNames && t.participantNames[otherUid]) || 'someone';
       const lastTs = t.lastTs ? (t.lastTs.toMillis ? t.lastTs.toMillis() : t.lastTs) : 0;
       const readTs = t.lastReadBy && t.lastReadBy[state.user.uid] ? (t.lastReadBy[state.user.uid].toMillis ? t.lastReadBy[state.user.uid].toMillis() : t.lastReadBy[state.user.uid]) : 0;
       const unread = t.lastAuthorUid && t.lastAuthorUid !== state.user.uid && lastTs > readTs;
       const av = avatarStyle(otherName);
-      return `<div class="thread-row" onclick="openChat('${t.id}', '${otherUid}', '${esc(otherName).replace(/'/g,"&#39;")}')">
-        <div class="avatar" style="background:${av.bg};color:${av.text};">${esc(initials(otherName))}</div>
+      const animStyle = isFirstLoad ? `style="animation-delay:${Math.min(i,8)*40}ms"` : '';
+      return `<div class="thread-row ${unread?'unread-row':''} ${isFirstLoad?'row-in':''}" ${animStyle} onclick="openChat('${t.id}', '${otherUid}', '${esc(otherName).replace(/'/g,"&#39;")}')" style="border-left-color:${unread ? av.text : 'transparent'};">
+        <div class="avatar avatar-lg" style="background:${av.bg};color:${av.text};">${esc(initials(otherName))}</div>
         <div class="thread-info">
           <div class="thread-top">
             <p class="thread-name">${esc(otherName)}</p>
             <span class="thread-time">${timeAgo(t.lastTs)}</span>
           </div>
-          <p class="thread-preview ${unread?'unread':''}">${t.lastAuthorUid===state.user.uid ? 'you: ' : ''}${esc(t.lastText || '')}</p>
+          ${t.topicTitle ? `<p class="thread-topic">on "${esc(t.topicTitle)}"</p>` : ''}
+          <p class="thread-preview ${unread?'unread':''}">${t.lastAuthorUid===state.user.uid ? 'You: ' : ''}${esc(t.lastText || '')}</p>
         </div>
         ${unread ? '<div class="unread-dot"></div>' : ''}
       </div>`;
     }).join('');
   }
+  state.inboxHasLoadedOnce = true;
   app.innerHTML = renderHeader() + `
     <button class="back" onclick="goList()">&larr; all debates</button>
     <h2 style="font-family:'Manrope',sans-serif;font-weight:800;font-size:24px;margin:0 0 6px;letter-spacing:-0.01em;">Messages</h2>
@@ -1187,15 +1212,23 @@ function renderChat(app){
         if(prevSame) classes.push('msg-cont');
         if(isNew) classes.push('msg-new');
         const timeHtml = nextSame ? '' : `<div class="m-time">${timeAgo(m.ts)}${showSeen ? ' · Seen' : ''}</div>`;
-        return `<div class="${classes.join(' ')}">${esc(m.text)}${timeHtml}</div>`;
+        const bubble = `<div class="${classes.join(' ')}">${esc(m.text)}${timeHtml}</div>`;
+        if(mine) return bubble;
+        const avatarSlot = !prevSame
+          ? `<div class="avatar avatar-sm" style="background:${av.text};color:#fff;">${esc(initials(state.chatWithName))}</div>`
+          : `<div class="avatar-sm-spacer"></div>`;
+        return `<div class="msg-row-theirs">${avatarSlot}${bubble}</div>`;
       }).join('')
     : `<div class="thread-empty">No messages yet. Say hello.</div>`;
 
   app.innerHTML = renderHeader() + `
     <button class="back" onclick="goInbox()">&larr; messages</button>
-    <div class="chat-head">
-      <div class="avatar" style="background:${av.bg};color:${av.text};">${esc(initials(state.chatWithName))}</div>
-      <h1>${esc(state.chatWithName)}</h1>
+    <div class="chat-head" style="background:${av.bg};">
+      <div class="avatar avatar-lg" style="background:${av.text};color:#fff;">${esc(initials(state.chatWithName))}</div>
+      <div>
+        <h1>${esc(state.chatWithName)}</h1>
+        ${t.topicTitle && t.topicId ? `<button class="topic-chip" onclick="openTopic('${t.topicId}')">Debating: ${esc(t.topicTitle)}</button>` : ''}
+      </div>
     </div>
     <div class="thread">${msgsHtml}</div>
     <div class="msg-input-row">
