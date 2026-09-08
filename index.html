@@ -20,6 +20,7 @@
     --wine-hover:#611B28;
     --wine-tint:#FBEDEF;
     --wine-tint-2:#F0D4D9;
+    --logo-red:#D6293F;
     --forest:#1F6B54;
     --forest-tint:#E9F5EF;
     --forest-tint-2:#CFEADB;
@@ -47,10 +48,15 @@
   }
   .wordmark{
     font-family:'Manrope', sans-serif;
-    font-size:26px;font-weight:800;letter-spacing:-0.02em;
-    display:flex;align-items:center;gap:3px;cursor:pointer;color:var(--ink);
+    font-size:24px;font-weight:800;letter-spacing:-0.02em;
+    display:flex;align-items:center;gap:10px;cursor:pointer;color:var(--ink);
   }
-  .wordmark .bolt{color:var(--wine);}
+  .logo-mark{
+    width:32px;height:32px;border-radius:9px;background:var(--logo-red);
+    color:#fff;display:flex;align-items:center;justify-content:center;
+    font-family:'Manrope',sans-serif;font-weight:800;font-size:16px;letter-spacing:0;
+    flex-shrink:0;box-shadow:0 2px 6px rgba(214,41,63,.35);
+  }
   .tag{font-size:14px;color:var(--ink-mute);font-weight:500;}
   .btn{
     font-family:'Public Sans',sans-serif;font-size:15px;font-weight:600;
@@ -344,6 +350,7 @@ const state = {
   topics: [], categoryFilter: 'all', sortMode: 'newest',
   currentTopicId: null, currentTopic: null, currentArgs: [],
   threads: [], currentThreadId: null, currentThread: null, chatWithUid: null, chatWithName: null, chatMessages: [],
+  chatAutoFocusPending: false, lastRenderedMsgCount: -1,
   submittingTopic: false, submittingArg: { pro: false, con: false }, submittingMsg: false, submittingAuth: false,
   topicUnsubs: [], chatUnsubs: [], globalUnsubs: [],
   toastMsg: null, toastTimer: null
@@ -780,6 +787,8 @@ async function openChat(tid, otherUid, otherName){
   state.chatWithName = otherName;
   state.currentThread = null;
   state.chatMessages = [];
+  state.chatAutoFocusPending = true;
+  state.lastRenderedMsgCount = -1;
   pushUrl('');
   render();
   const threadUnsub = fb.onSnapshot(fb.doc(db, 'threads', tid), d => {
@@ -896,7 +905,7 @@ function renderHeader(){
         <button class="auth-btn filled" onclick="openAuthModal('signup')">Sign up</button>
       </div>`;
   return `<header class="site">
-    <div class="wordmark" onclick="goList()"><span>Rebuttal</span><span class="bolt">⚡</span></div>
+    <div class="wordmark" onclick="goList()"><span class="logo-mark">R</span><span>Rebuttal</span></div>
     <div class="nav-right">
       <div class="tag">pick a side. make your case.</div>
       ${authSection}
@@ -1132,10 +1141,31 @@ function renderChat(app){
     app.innerHTML = renderHeader() + `<div class="loading">loading conversation…</div>`;
     return;
   }
+
+  // preserve whatever the person has typed but not sent yet, and whether they were mid-typing,
+  // since this function can re-run in the background (new message arrives, read-receipt updates, etc.)
+  const existingInput = document.getElementById('chat-msg');
+  const preservedValue = existingInput ? existingInput.value : '';
+  const hadFocus = existingInput && existingInput === document.activeElement;
+  const preservedSelection = existingInput ? existingInput.selectionStart : null;
+
+  // figure out if my last message has been seen by the other person
+  const lastMineIdx = (() => {
+    for(let i = state.chatMessages.length - 1; i >= 0; i--){
+      if(state.chatMessages[i].authorUid === state.user.uid) return i;
+    }
+    return -1;
+  })();
+  const otherReadTs = t.lastReadBy && t.lastReadBy[state.chatWithUid]
+    ? (t.lastReadBy[state.chatWithUid].toMillis ? t.lastReadBy[state.chatWithUid].toMillis() : t.lastReadBy[state.chatWithUid])
+    : 0;
+
   const msgsHtml = state.chatMessages.length
-    ? state.chatMessages.map(m => {
+    ? state.chatMessages.map((m, i) => {
         const mine = m.authorUid === state.user.uid;
-        return `<div class="msg ${mine?'mine':'theirs'}">${esc(m.text)}<div class="m-time">${timeAgo(m.ts)}</div></div>`;
+        const msgTs = m.ts ? (m.ts.toMillis ? m.ts.toMillis() : m.ts) : 0;
+        const showSeen = mine && i === lastMineIdx && otherReadTs >= msgTs && msgTs > 0;
+        return `<div class="msg ${mine?'mine':'theirs'}">${esc(m.text)}<div class="m-time">${timeAgo(m.ts)}${showSeen ? ' · Seen' : ''}</div></div>`;
       }).join('')
     : `<div class="thread-empty">No messages yet. Say hello.</div>`;
 
@@ -1147,11 +1177,34 @@ function renderChat(app){
     </div>
     <div class="thread">${msgsHtml}</div>
     <div class="msg-input-row">
-      <textarea id="chat-msg" placeholder="Write a message…"></textarea>
+      <textarea id="chat-msg" placeholder="Write a message… (Enter to send, Shift+Enter for a new line)"></textarea>
       <button class="btn primary" id="chat-send-btn" onclick="sendChatMsg()">Send</button>
     </div>
     ${renderFooter()}
   `;
+
+  const newInput = document.getElementById('chat-msg');
+  if(newInput){
+    newInput.value = preservedValue;
+    newInput.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        sendChatMsg();
+      }
+    });
+    if(hadFocus || state.chatAutoFocusPending){
+      newInput.focus();
+      const pos = preservedSelection !== null ? preservedSelection : newInput.value.length;
+      newInput.selectionStart = newInput.selectionEnd = pos;
+    }
+  }
+  state.chatAutoFocusPending = false;
+
+  if(state.chatMessages.length !== state.lastRenderedMsgCount){
+    state.lastRenderedMsgCount = state.chatMessages.length;
+    const raf = window.requestAnimationFrame || function(fn){ setTimeout(fn, 16); };
+    raf(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }));
+  }
 }
 
 /* ---------- wire up window globals for inline onclick handlers ---------- */
