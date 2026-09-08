@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rebuttal — pick a side</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EFECE3;
+    --surface:#F7F5EE;
+    --surface-hi:#EDEAE0;
+    --hair:#D9D5C7;
+    --hair-strong:#C7C2AF;
+    --text:#1B2740;
+    --text-soft:#5B6478;
+    --text-mute:#8891A0;
+    --gold:#8A6A16;
+    --gold-tint:#F1E7CC;
+    --pro:#0F6E56;
+    --pro-tint:#E1F0EA;
+    --pro-tint-2:#CDE6DC;
+    --con:#9A3E1E;
+    --con-tint:#F3E7DF;
+    --con-tint-2:#EAD3C1;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:0 24px 80px;}
+  header.site{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:32px 0 20px;border-bottom:1px solid var(--hair);
+    margin-bottom:28px;flex-wrap:wrap;gap:10px;
+  }
+  .wordmark{
+    font-family:'Fraunces', serif;
+    font-size:28px;font-weight:600;letter-spacing:-0.01em;
+    display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text);
+  }
+  .wordmark .bolt{color:var(--gold);font-family:'IBM Plex Mono',monospace;font-size:18px;}
+  .tag{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-mute);letter-spacing:.02em;}
+  .btn{
+    font-family:'Inter',sans-serif;font-size:14px;font-weight:500;
+    border:1px solid var(--hair-strong);background:transparent;color:var(--text);
+    padding:9px 16px;border-radius:3px;cursor:pointer;transition:background .15s,color .15s,opacity .15s;
+  }
+  .btn:hover{background:var(--text);color:var(--bg);border-color:var(--text);}
+  .btn:disabled{opacity:.5;cursor:default;}
+  .btn:disabled:hover{background:transparent;color:var(--text);}
+  .btn.ghost{border-color:var(--hair);color:var(--text-soft);}
+  .btn.ghost:hover{background:var(--surface-hi);color:var(--text);}
+  .btn.primary{background:var(--text);color:var(--bg);border-color:var(--text);}
+  .btn.primary:hover{opacity:.85;background:var(--text);}
+  .btn.primary:disabled{opacity:.45;}
+
+  .nav-right{display:flex;align-items:center;gap:14px;}
+  .messages-nav{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-soft);
+    background:none;border:1px solid var(--hair);border-radius:20px;padding:6px 14px;cursor:pointer;
+    display:flex;align-items:center;gap:6px;
+  }
+  .messages-nav:hover{border-color:var(--gold);color:var(--gold);}
+  .messages-nav.active{border-color:var(--gold);color:var(--gold);background:var(--gold-tint);}
+  .badge-dot{background:var(--gold);color:var(--gold-tint);border-radius:10px;padding:1px 6px;font-size:11px;font-weight:600;}
+
+  /* Topic list */
+  .row{
+    display:flex;justify-content:space-between;align-items:flex-start;gap:20px;
+    padding:22px 0;border-bottom:1px solid var(--hair);cursor:pointer;
+  }
+  .row:hover .row-title{text-decoration:underline;text-decoration-color:var(--gold);text-underline-offset:4px;}
+  .row-title{
+    font-family:'Fraunces',serif;font-size:21px;font-weight:500;margin:0 0 6px;
+  }
+  .row-desc{font-size:14px;color:var(--text-soft);margin:0;max-width:560px;line-height:1.5;}
+  .row-meta{
+    display:flex;gap:14px;align-items:center;white-space:nowrap;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-mute);
+    padding-top:4px;
+  }
+  .score-bar{
+    display:flex;width:56px;height:6px;border-radius:3px;overflow:hidden;background:var(--hair);
+  }
+  .score-bar .p{background:var(--pro);height:100%;}
+  .score-bar .c{background:var(--con);height:100%;}
+
+  .empty{padding:60px 0;text-align:center;color:var(--text-soft);}
+  .empty h3{font-family:'Fraunces',serif;font-weight:500;font-size:19px;color:var(--text);margin-bottom:6px;}
+
+  .banner{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:var(--con-tint);border:1px solid var(--con-tint-2);border-radius:6px;
+    padding:12px 16px;margin-bottom:18px;font-size:13.5px;color:var(--text);
+  }
+  .banner .btn{padding:5px 12px;font-size:12.5px;}
+
+  /* New topic form */
+  .panel{
+    background:var(--surface);border:1px solid var(--hair);border-radius:6px;
+    padding:24px;margin-bottom:28px;
+  }
+  .panel h2{font-family:'Fraunces',serif;font-size:18px;font-weight:500;margin:0 0 16px;}
+  label{display:block;font-size:12px;font-family:'IBM Plex Mono',monospace;color:var(--text-mute);margin-bottom:6px;}
+  input[type=text], textarea{
+    width:100%;font-family:'Inter',sans-serif;font-size:15px;color:var(--text);
+    background:#fff;border:1px solid var(--hair-strong);border-radius:4px;padding:10px 12px;
+    margin-bottom:16px;resize:vertical;
+  }
+  input[type=text]::placeholder, textarea::placeholder{color:var(--text-mute);}
+  input[type=text]:focus, textarea:focus{outline:none;border-color:var(--gold);}
+  .err{font-size:12.5px;color:var(--con);margin:-10px 0 14px;}
+  .form-actions{display:flex;gap:10px;}
+
+  /* Debate view */
+  .back{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-soft);background:none;border:none;cursor:pointer;padding:0;margin-bottom:18px;display:inline-flex;align-items:center;gap:5px;}
+  .back:hover{color:var(--text);}
+  .topic-head{margin-bottom:22px;}
+  .topic-head h1{font-family:'Fraunces',serif;font-size:30px;font-weight:600;line-height:1.2;margin:0 0 10px;}
+  .topic-head p{font-size:15px;color:var(--text-soft);line-height:1.6;margin:0;max-width:680px;}
+
+  .tally{
+    display:flex;border:1px solid var(--hair);border-radius:6px;overflow:hidden;margin-bottom:18px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .tally .side{flex:1;padding:14px 18px;}
+  .tally .side.pro{background:var(--pro-tint);}
+  .tally .side.con{background:var(--con-tint);}
+  .tally .side .n{font-size:24px;font-weight:500;font-family:'Fraunces',serif;}
+  .tally .side.pro .n{color:var(--pro);}
+  .tally .side.con .n{color:var(--con);}
+  .tally .side .l{font-size:11.5px;color:var(--text-mute);letter-spacing:.03em;}
+
+  .challenge-row{display:flex;justify-content:flex-end;margin:0 0 24px;}
+  .challenge-btn{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--gold);background:var(--gold-tint);border:1px solid var(--gold);border-radius:20px;padding:6px 14px;cursor:pointer;}
+  .challenge-btn:hover{opacity:.8;}
+
+  .columns{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media (max-width:680px){.columns{grid-template-columns:1fr;}}
+  .col-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding-bottom:10px;margin-bottom:14px;border-bottom:2px solid;
+  }
+  .col-head.pro{border-color:var(--pro);}
+  .col-head.con{border-color:var(--con);}
+  .col-head span.label{font-family:'Fraunces',serif;font-size:17px;font-weight:500;}
+  .col-head.pro span.label{color:var(--pro);}
+  .col-head.con span.label{color:var(--con);}
+
+  .arg-card{
+    background:var(--surface);border:1px solid var(--hair);border-radius:6px;
+    padding:14px 16px;margin-bottom:12px;
+  }
+  .arg-text{font-size:14.5px;line-height:1.55;margin:0 0 10px;color:var(--text);}
+  .arg-meta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--text-mute);margin:0 0 10px;}
+  .arg-foot{display:flex;align-items:center;justify-content:space-between;}
+  .vote-btn{
+    display:flex;align-items:center;gap:6px;background:none;border:1px solid var(--hair-strong);
+    border-radius:20px;padding:4px 12px;cursor:pointer;font-family:'IBM Plex Mono',monospace;
+    font-size:13px;color:var(--text-soft);transition:.15s;
+  }
+  .vote-btn:hover{border-color:var(--gold);color:var(--gold);}
+  .vote-btn.voted{background:var(--gold-tint);border-color:var(--gold);color:var(--gold);}
+  .debate-btn{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--gold);background:none;border:1px solid var(--gold);border-radius:16px;padding:4px 10px;cursor:pointer;}
+  .debate-btn:hover{background:var(--gold-tint);}
+
+  .add-arg{margin-top:6px;}
+  .add-arg textarea{margin-bottom:8px;min-height:70px;}
+  .add-arg .btn{width:100%;font-size:13.5px;}
+  .add-arg .btn.pro-btn{border-color:var(--pro);color:var(--pro);}
+  .add-arg .btn.pro-btn:hover{background:var(--pro);color:#fff;}
+  .add-arg .btn.con-btn{border-color:var(--con);color:var(--con);}
+  .add-arg .btn.con-btn:hover{background:var(--con);color:#fff;}
+
+  .col-empty{font-size:13.5px;color:var(--text-mute);padding:18px 0;text-align:center;border:1px dashed var(--hair);border-radius:6px;margin-bottom:12px;}
+  .loading{padding:60px 0;text-align:center;color:var(--text-mute);font-family:'IBM Plex Mono',monospace;font-size:13px;}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(27,39,64,0.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal{background:var(--surface);border-radius:8px;border:1px solid var(--hair);padding:26px;max-width:400px;width:100%;}
+  .modal h3{font-family:'Fraunces',serif;font-size:19px;font-weight:500;margin:0 0 14px;color:var(--text);}
+  .modal .side-choice{display:flex;gap:10px;margin:8px 0 16px;}
+  .modal .side-choice button{flex:1;padding:14px;border-radius:6px;border:1px solid var(--hair);background:#fff;cursor:pointer;font-family:'Fraunces',serif;font-size:15px;}
+  .modal .side-choice button.pro-c{color:var(--pro);}
+  .modal .side-choice button.pro-c:hover{background:var(--pro-tint);border-color:var(--pro);}
+  .modal .side-choice button.con-c{color:var(--con);}
+  .modal .side-choice button.con-c:hover{background:var(--con-tint);border-color:var(--con);}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;}
+
+  /* Inbox / profile list */
+  .thread-row{
+    display:flex;align-items:center;gap:14px;padding:16px 0;border-bottom:1px solid var(--hair);cursor:pointer;
+  }
+  .thread-row:hover{background:var(--surface);}
+  .avatar{
+    width:42px;height:42px;border-radius:50%;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Fraunces',serif;font-weight:500;font-size:15px;
+  }
+  .thread-info{flex:1;min-width:0;}
+  .thread-top{display:flex;justify-content:space-between;gap:10px;}
+  .thread-name{font-family:'Fraunces',serif;font-size:16px;font-weight:500;margin:0;}
+  .thread-time{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--text-mute);white-space:nowrap;}
+  .thread-preview{font-size:13.5px;color:var(--text-soft);margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .thread-preview.unread{color:var(--text);font-weight:500;}
+  .unread-dot{width:8px;height:8px;border-radius:50%;background:var(--gold);flex-shrink:0;}
+
+  /* Chat view */
+  .chat-head{display:flex;align-items:center;gap:12px;margin-bottom:22px;}
+  .chat-head .avatar{width:38px;height:38px;font-size:14px;}
+  .chat-head h1{font-family:'Fraunces',serif;font-size:22px;font-weight:600;margin:0;flex:1;}
+  .thread{display:flex;flex-direction:column;gap:10px;margin-bottom:18px;min-height:120px;}
+  .msg{max-width:74%;padding:10px 14px;border-radius:14px;font-size:14.5px;line-height:1.5;}
+  .msg .m-time{font-family:'IBM Plex Mono',monospace;font-size:10.5px;margin-top:4px;opacity:.6;}
+  .msg.mine{align-self:flex-end;background:var(--text);color:var(--bg);border-bottom-right-radius:3px;}
+  .msg.theirs{align-self:flex-start;background:var(--surface);border:1px solid var(--hair);color:var(--text);border-bottom-left-radius:3px;}
+  .thread-empty{text-align:center;color:var(--text-mute);font-size:13.5px;padding:30px 0;}
+  .msg-input-row{display:flex;gap:8px;}
+  .msg-input-row textarea{flex:1;min-height:44px;margin:0;}
+  .msg-input-row button{white-space:nowrap;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="loading">loading rebuttal…</div>
+</div>
+
+<script>
+const state = {
+  view: 'list', topics: null, currentTopicId: null, currentArgs: null, argsError: false, voted: {},
+  myName: null,
+  inbox: [], currentThreadKey: null, currentThread: null, chatWithName: null, chatError: false,
+  pollHandle: null,
+  submittingTopic: false, submittingArg: { pro: false, con: false }, submittingMsg: false
+};
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function timeAgo(ts){
+  const s = Math.floor((Date.now()-ts)/1000);
+  if(s<60) return 'just now';
+  const m = Math.floor(s/60); if(m<60) return m+'m';
+  const h = Math.floor(m/60); if(h<24) return h+'h';
+  const d = Math.floor(h/24); return d+'d';
+}
+function slug(name){ return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60); }
+function initials(name){
+  const parts = name.trim().split(/\s+/).slice(0,2);
+  return parts.map(w=>w[0].toUpperCase()).join('') || '?';
+}
+function avatarStyle(name){
+  const palette = [
+    {bg:'var(--pro-tint)', text:'var(--pro)'},
+    {bg:'var(--con-tint)', text:'var(--con)'},
+    {bg:'var(--gold-tint)', text:'var(--gold)'},
+    {bg:'var(--surface-hi)', text:'var(--text)'}
+  ];
+  let hash = 0;
+  for(const c of name) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
+  return palette[hash % palette.length];
+}
+
+/* ---------- storage: resilient wrapper with fallback ---------- */
+const memoryStore = {};
+function hasNativeStorage(){
+  return typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function';
+}
+function withTimeout(promise, ms){
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('storage timeout')), ms);
+    promise.then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
+  });
+}
+async function storageGet(key, shared){
+  if(hasNativeStorage()){
+    try{
+      const res = await withTimeout(window.storage.get(key, shared), 1200);
+      return res ? res.value : null;
+    }catch(e){}
+  }
+  try{
+    const raw = localStorage.getItem('rb:'+key);
+    if(raw !== null) return raw;
+  }catch(e){}
+  return Object.prototype.hasOwnProperty.call(memoryStore, key) ? memoryStore[key] : null;
+}
+async function storageSet(key, value, shared){
+  let nativeOk = false;
+  if(hasNativeStorage()){
+    try{ await withTimeout(window.storage.set(key, value, shared), 1200); nativeOk = true; }catch(e){}
+  }
+  if(!nativeOk){
+    try{ localStorage.setItem('rb:'+key, value); }catch(e){}
+  }
+  memoryStore[key] = value;
+}
+function raceTimeout(promise, ms, fallbackValue){
+  return new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => { if(!done){ done = true; resolve(fallbackValue); } }, ms);
+    promise.then(v => { if(!done){ done = true; clearTimeout(timer); resolve(v); } },
+                 () => { if(!done){ done = true; clearTimeout(timer); resolve(fallbackValue); } });
+  });
+}
+
+/* ---------- topics / arguments storage ---------- */
+async function loadTopics(){
+  try{
+    const raw = await storageGet('topics', true);
+    state.topics = raw ? JSON.parse(raw) : [];
+  }catch(e){ state.topics = []; }
+}
+async function saveTopics(){
+  await storageSet('topics', JSON.stringify(state.topics), true);
+}
+async function loadArgs(topicId){
+  try{
+    const raw = await storageGet('args:'+topicId, true);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+async function saveArgs(topicId, args){
+  await storageSet('args:'+topicId, JSON.stringify(args), true);
+}
+
+/* ---------- identity ---------- */
+async function ensureName(){
+  if(state.myName) return state.myName;
+  try{
+    const raw = await storageGet('my-name', false);
+    if(raw){ state.myName = raw; return state.myName; }
+  }catch(e){}
+  return null;
+}
+function askName(onDone){
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `<div class="modal">
+    <h3>What should we call you?</h3>
+    <input type="text" id="name-input" placeholder="Your name" style="margin-bottom:6px;">
+    <div id="name-err" class="err" style="display:none;">Enter a name to continue.</div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="name-cancel">Cancel</button>
+      <button class="btn primary" id="name-ok">Continue</button>
+    </div>
+  </div>`;
+  document.body.appendChild(backdrop);
+  const input = backdrop.querySelector('#name-input');
+  input.focus();
+  const close = () => document.body.removeChild(backdrop);
+  backdrop.querySelector('#name-cancel').onclick = close;
+  backdrop.querySelector('#name-ok').onclick = async () => {
+    const name = input.value.trim();
+    if(!name){ backdrop.querySelector('#name-err').style.display='block'; return; }
+    state.myName = name;
+    try{ await storageSet('my-name', name, false); }catch(e){}
+    close();
+    onDone(name);
+  };
+}
+
+/* ---------- messaging (threads + inbox) ---------- */
+function threadKeyFor(a, b){
+  const s = [slug(a), slug(b)].sort();
+  return 'thread-' + s[0] + '_' + s[1];
+}
+async function getThread(key){
+  try{
+    const raw = await storageGet(key, true);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+async function saveThread(key, thread){
+  await storageSet(key, JSON.stringify(thread), true);
+}
+async function getInbox(name){
+  try{
+    const raw = await storageGet('inbox-'+slug(name), true);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+async function saveInbox(name, list){
+  await storageSet('inbox-'+slug(name), JSON.stringify(list), true);
+}
+async function upsertInboxEntry(name, entry){
+  const inbox = await getInbox(name);
+  const idx = inbox.findIndex(e => e.threadKey === entry.threadKey);
+  if(idx >= 0) inbox[idx] = { ...inbox[idx], ...entry };
+  else inbox.push(entry);
+  await saveInbox(name, inbox);
+}
+
+async function postMessage(threadKey, otherName, text){
+  const name = state.myName;
+  let thread = await getThread(threadKey);
+  if(!thread) thread = { id: threadKey, participants: [name, otherName], messages: [] };
+  const msg = { id: uid(), author: name, text, ts: Date.now() };
+  thread.messages.push(msg);
+  await saveThread(threadKey, thread);
+  const now = Date.now();
+  await upsertInboxEntry(name, { threadKey, otherName, lastText: text, lastAuthor: name, lastTs: now, lastReadTs: now });
+  const theirInbox = await getInbox(otherName);
+  const existing = theirInbox.find(e => e.threadKey === threadKey);
+  const theirReadTs = existing ? existing.lastReadTs : 0;
+  await upsertInboxEntry(otherName, { threadKey, otherName: name, lastText: text, lastAuthor: name, lastTs: now, lastReadTs: theirReadTs });
+  return thread;
+}
+
+function unreadCount(){
+  return (state.inbox || []).filter(e => e.lastAuthor !== state.myName && e.lastTs > (e.lastReadTs || 0)).length;
+}
+
+async function pollInbox(){
+  if(!state.myName) return;
+  try{
+    const inbox = await raceTimeout(getInbox(state.myName), 2000, state.inbox || []);
+    const changed = JSON.stringify(inbox) !== JSON.stringify(state.inbox || []);
+    state.inbox = inbox;
+    if(changed) render();
+  }catch(e){}
+}
+
+async function goInbox(){
+  const name = await ensureName();
+  if(!name){ askName(() => goInbox()); return; }
+  state.view = 'inbox';
+  stopPolling();
+  render();
+  await pollInbox();
+  render();
+}
+
+async function openChat(threadKey, otherName){
+  state.view = 'chat';
+  state.currentThreadKey = threadKey;
+  state.chatWithName = otherName;
+  state.currentThread = null;
+  state.chatError = false;
+  render();
+  await refreshChat();
+  startPolling(refreshChat);
+}
+
+async function refreshChat(){
+  if(state.view !== 'chat') return;
+  const t = await raceTimeout(getThread(state.currentThreadKey), 3000, null);
+  state.currentThread = t || { participants: [state.myName, state.chatWithName], messages: [] };
+  state.chatError = !t;
+  const msgs = state.currentThread.messages;
+  const last = msgs.length ? msgs[msgs.length - 1] : null;
+  try{
+    await raceTimeout(upsertInboxEntry(state.myName, {
+      threadKey: state.currentThreadKey, otherName: state.chatWithName,
+      lastText: last ? last.text : '', lastAuthor: last ? last.author : state.myName,
+      lastTs: last ? last.ts : Date.now(), lastReadTs: Date.now()
+    }), 1500, null);
+  }catch(e){}
+  render();
+}
+
+async function sendChatMsg(){
+  if(state.submittingMsg) return;
+  const input = document.getElementById('chat-msg');
+  const text = input.value.trim();
+  if(!text) return;
+  const btn = document.getElementById('chat-send-btn');
+  state.submittingMsg = true;
+  if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  try{
+    await postMessage(state.currentThreadKey, state.chatWithName, text);
+    input.value = '';
+    await refreshChat();
+  }catch(e){
+    alert("Couldn't send that message. Try again.");
+  }finally{
+    state.submittingMsg = false;
+  }
+}
+
+function startPolling(fn){
+  stopPolling();
+  state.pollHandle = setInterval(fn, 4000);
+}
+function stopPolling(){
+  if(state.pollHandle){ clearInterval(state.pollHandle); state.pollHandle = null; }
+}
+
+/* ---------- challenge someone to a debate (starts/opens a chat) ---------- */
+async function challengeAuthor(argId){
+  const name = await ensureName();
+  if(!name){ askName(() => challengeAuthor(argId)); return; }
+  const arg = (state.currentArgs || []).find(a => a.id === argId);
+  if(!arg) return;
+  if(arg.author === name){ alert("That's your own argument."); return; }
+  const topic = state.topics.find(t => t.id === state.currentTopicId);
+  const mySide = arg.side === 'pro' ? 'con' : 'pro';
+  const line = `Want to debate "${topic.title}" one-on-one? I'll argue ${mySide}.`;
+  const threadKey = threadKeyFor(name, arg.author);
+  await postMessage(threadKey, arg.author, line);
+  await openChat(threadKey, arg.author);
+}
+
+async function startChallenge(){
+  const name = await ensureName();
+  if(!name){ askName(() => startChallenge()); return; }
+  const topic = state.topics.find(t => t.id === state.currentTopicId);
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `<div class="modal">
+    <h3>Start a private debate</h3>
+    <p style="font-size:13.5px;color:var(--text-soft);margin:0 0 12px;">Message someone directly about "${esc(topic.title)}".</p>
+    <label for="challenge-name">Their name</label>
+    <input type="text" id="challenge-name" placeholder="e.g. Priya" style="margin-bottom:6px;">
+    <label style="margin-top:10px;">Your side</label>
+    <div class="side-choice">
+      <button class="pro-c" id="choose-pro">Pro</button>
+      <button class="con-c" id="choose-con">Con</button>
+    </div>
+    <div id="challenge-err" class="err" style="display:none;">Enter their name first.</div>
+    <div class="modal-actions"><button class="btn ghost" id="challenge-cancel">Cancel</button></div>
+  </div>`;
+  document.body.appendChild(backdrop);
+  const close = () => document.body.removeChild(backdrop);
+  backdrop.querySelector('#challenge-cancel').onclick = close;
+  const go = async (side) => {
+    const otherName = backdrop.querySelector('#challenge-name').value.trim();
+    const errEl = backdrop.querySelector('#challenge-err');
+    if(!otherName){ errEl.textContent = 'Enter their name first.'; errEl.style.display = 'block'; return; }
+    if(otherName.toLowerCase() === name.toLowerCase()){ errEl.textContent = "That's you."; errEl.style.display = 'block'; return; }
+    close();
+    const line = `Want to debate "${topic.title}" one-on-one? I'll argue ${side}.`;
+    const threadKey = threadKeyFor(name, otherName);
+    await postMessage(threadKey, otherName, line);
+    await openChat(threadKey, otherName);
+  };
+  backdrop.querySelector('#choose-pro').onclick = () => go('pro');
+  backdrop.querySelector('#choose-con').onclick = () => go('con');
+}
+
+/* ---------- rendering ---------- */
+function render(){
+  const app = document.getElementById('app');
+  if(state.view === 'list') return renderList(app);
+  if(state.view === 'new') return renderNew(app);
+  if(state.view === 'topic') return renderTopic(app);
+  if(state.view === 'inbox') return renderInbox(app);
+  if(state.view === 'chat') return renderChat(app);
+}
+
+function renderHeader(){
+  const count = unreadCount();
+  return `<header class="site">
+    <div class="wordmark" onclick="goList()"><span>Rebuttal</span><span class="bolt">⚡</span></div>
+    <div class="nav-right">
+      <div class="tag">pick a side. make your case.</div>
+      <button class="messages-nav ${state.view==='inbox'||state.view==='chat' ? 'active' : ''}" onclick="goInbox()">
+        messages${count ? ` <span class="badge-dot">${count}</span>` : ''}
+      </button>
+    </div>
+  </header>`;
+}
+
+function renderList(app){
+  const topics = state.topics || [];
+  let rows = '';
+  if(topics.length === 0){
+    rows = `<div class="empty"><h3>No debates yet</h3><p>Start the first one.</p></div>`;
+  } else {
+    const sorted = [...topics].sort((a,b)=>b.createdAt-a.createdAt);
+    rows = sorted.map(t=>{
+      const total = (t.proCount||0) + (t.conCount||0);
+      const proPct = total ? Math.round((t.proCount/total)*100) : 50;
+      return `<div class="row" onclick="openTopic('${t.id}')">
+        <div>
+          <p class="row-title">${esc(t.title)}</p>
+          ${t.description ? `<p class="row-desc">${esc(t.description)}</p>` : ''}
+        </div>
+        <div class="row-meta">
+          <div class="score-bar"><div class="p" style="width:${proPct}%"></div><div class="c" style="width:${100-proPct}%"></div></div>
+          <span>${total} arg${total===1?'':'s'}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  app.innerHTML = renderHeader() + `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:10px;">
+      <button class="btn ghost" onclick="loadExamples()">Load example debates</button>
+      <button class="btn primary" onclick="goNew()">+ new debate</button>
+    </div>
+    ${rows}
+  `;
+}
+
+function renderNew(app){
+  app.innerHTML = renderHeader() + `
+    <button class="back" onclick="goList()">&larr; all debates</button>
+    <div class="panel">
+      <h2>Start a debate</h2>
+      <label for="t-title">Topic</label>
+      <input type="text" id="t-title" placeholder="e.g. Remote work is better than office work">
+      <label for="t-desc">Context (optional)</label>
+      <textarea id="t-desc" rows="3" placeholder="A sentence or two framing the debate."></textarea>
+      <div id="t-err" class="err" style="display:none;"></div>
+      <div class="form-actions">
+        <button class="btn primary" id="create-topic-btn" onclick="submitTopic()">Create debate</button>
+        <button class="btn ghost" onclick="goList()">Cancel</button>
+      </div>
+    </div>
+  `;
+}
+
+async function submitTopic(){
+  if(state.submittingTopic) return;
+  const title = document.getElementById('t-title').value.trim();
+  const desc = document.getElementById('t-desc').value.trim();
+  const errEl = document.getElementById('t-err');
+  if(!title){
+    errEl.textContent = 'Give the debate a topic first.';
+    errEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('create-topic-btn');
+  state.submittingTopic = true;
+  if(btn){ btn.disabled = true; btn.textContent = 'Creating…'; }
+  try{
+    const topic = { id: uid(), title, description: desc, createdAt: Date.now(), proCount:0, conCount:0 };
+    state.topics.push(topic);
+    await saveTopics();
+    await openTopic(topic.id);
+  }catch(e){
+    alert("Couldn't create that debate. Try again.");
+  }finally{
+    state.submittingTopic = false;
+  }
+}
+
+async function openTopic(id){
+  state.currentTopicId = id;
+  state.view = 'topic';
+  state.currentArgs = null;
+  state.argsError = false;
+  stopPolling();
+  render();
+  const args = await raceTimeout(loadArgs(id), 4000, null);
+  if(args === null){
+    state.currentArgs = [];
+    state.argsError = true;
+  } else {
+    state.currentArgs = args;
+  }
+  render();
+}
+
+function renderTopic(app){
+  const topic = (state.topics||[]).find(t=>t.id===state.currentTopicId);
+  if(!topic){ app.innerHTML = renderHeader() + `<div class="empty"><h3>Debate not found</h3></div>`; return; }
+  if(state.currentArgs === null){
+    app.innerHTML = renderHeader() + `<div class="loading">loading arguments…</div>`;
+    return;
+  }
+  const args = state.currentArgs;
+  const pro = args.filter(a=>a.side==='pro').sort((a,b)=>b.votes-a.votes);
+  const con = args.filter(a=>a.side==='con').sort((a,b)=>b.votes-a.votes);
+
+  const cardHtml = (a) => {
+    const voted = !!state.voted[a.id];
+    const canChallenge = a.author && a.author !== state.myName;
+    return `<div class="arg-card">
+      <p class="arg-text">${esc(a.text)}</p>
+      <p class="arg-meta">${a.author ? esc(a.author) : 'anonymous'} &middot; ${timeAgo(a.createdAt)}</p>
+      <div class="arg-foot">
+        <button class="vote-btn ${voted?'voted':''}" onclick="vote('${a.id}')">
+          <span>${voted ? '&#9650;' : '&#9651;'}</span><span>${a.votes}</span>
+        </button>
+        ${canChallenge ? `<button class="debate-btn" onclick="challengeAuthor('${a.id}')">Debate &rarr;</button>` : ''}
+      </div>
+    </div>`;
+  };
+
+  app.innerHTML = renderHeader() + `
+    <button class="back" onclick="goList()">&larr; all debates</button>
+    <div class="topic-head">
+      <h1>${esc(topic.title)}</h1>
+      ${topic.description ? `<p>${esc(topic.description)}</p>` : ''}
+    </div>
+    ${state.argsError ? `<div class="banner"><span>Couldn't load arguments just now — showing what's cached.</span><button class="btn ghost" onclick="openTopic('${topic.id}')">Retry</button></div>` : ''}
+    <div class="tally">
+      <div class="side pro"><div class="n">${pro.length}</div><div class="l">pro arguments</div></div>
+      <div class="side con"><div class="n">${con.length}</div><div class="l">con arguments</div></div>
+    </div>
+    <div class="challenge-row">
+      <button class="challenge-btn" onclick="startChallenge()">Message someone about this &rarr;</button>
+    </div>
+    <div class="columns">
+      <div>
+        <div class="col-head pro"><span class="label">Pro</span></div>
+        ${pro.length ? pro.map(cardHtml).join('') : '<div class="col-empty">No arguments yet. Be first.</div>'}
+        <div class="add-arg">
+          <textarea id="pro-input" placeholder="Make the case for..."></textarea>
+          <button class="btn pro-btn" id="pro-submit-btn" onclick="addArg('pro')">Add to Pro</button>
+        </div>
+      </div>
+      <div>
+        <div class="col-head con"><span class="label">Con</span></div>
+        ${con.length ? con.map(cardHtml).join('') : '<div class="col-empty">No arguments yet. Be first.</div>'}
+        <div class="add-arg">
+          <textarea id="con-input" placeholder="Make the case against..."></textarea>
+          <button class="btn con-btn" id="con-submit-btn" onclick="addArg('con')">Add to Con</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function addArg(side){
+  if(state.submittingArg[side]) return;
+  state.submittingArg[side] = true;
+  try{
+    const name = await ensureName();
+    if(!name){ state.submittingArg[side] = false; askName(() => addArg(side)); return; }
+    const inputEl = document.getElementById(side+'-input');
+    const text = inputEl.value.trim();
+    if(!text) { state.submittingArg[side] = false; inputEl.style.borderColor = 'var(--con)'; inputEl.focus(); return; }
+    const btn = document.getElementById(side+'-submit-btn');
+    if(btn){ btn.disabled = true; btn.textContent = 'Posting…'; }
+    const newArg = { id: uid(), side, text, votes: 0, author: name, createdAt: Date.now() };
+    state.currentArgs.push(newArg);
+    await saveArgs(state.currentTopicId, state.currentArgs);
+    const topic = state.topics.find(t=>t.id===state.currentTopicId);
+    if(topic){
+      topic.proCount = state.currentArgs.filter(a=>a.side==='pro').length;
+      topic.conCount = state.currentArgs.filter(a=>a.side==='con').length;
+      await saveTopics();
+    }
+  }catch(e){
+    alert("Couldn't post that argument. Try again.");
+  }finally{
+    state.submittingArg[side] = false;
+  }
+  render();
+}
+
+async function vote(argId){
+  const arg = state.currentArgs.find(a=>a.id===argId);
+  if(!arg) return;
+  if(state.voted[argId]){
+    arg.votes = Math.max(0, arg.votes-1);
+    delete state.voted[argId];
+  } else {
+    arg.votes += 1;
+    state.voted[argId] = true;
+  }
+  render();
+  await saveArgs(state.currentTopicId, state.currentArgs);
+}
+
+/* ---------- inbox / chat views ---------- */
+function renderInbox(app){
+  const inbox = [...(state.inbox || [])].sort((a,b)=>b.lastTs-a.lastTs);
+  let rows;
+  if(!inbox.length){
+    rows = `<div class="empty"><h3>No conversations yet</h3><p>Hit "Debate" under someone's argument, or "Message someone about this" on any topic.</p></div>`;
+  } else {
+    rows = inbox.map(e => {
+      const unread = e.lastAuthor !== state.myName && e.lastTs > (e.lastReadTs||0);
+      const av = avatarStyle(e.otherName);
+      return `<div class="thread-row" onclick="openChat('${e.threadKey}', '${esc(e.otherName).replace(/'/g,"&#39;")}')">
+        <div class="avatar" style="background:${av.bg};color:${av.text};">${esc(initials(e.otherName))}</div>
+        <div class="thread-info">
+          <div class="thread-top">
+            <p class="thread-name">${esc(e.otherName)}</p>
+            <span class="thread-time">${timeAgo(e.lastTs)}</span>
+          </div>
+          <p class="thread-preview ${unread?'unread':''}">${e.lastAuthor===state.myName ? 'you: ' : ''}${esc(e.lastText)}</p>
+        </div>
+        ${unread ? '<div class="unread-dot"></div>' : ''}
+      </div>`;
+    }).join('');
+  }
+  app.innerHTML = renderHeader() + `
+    <button class="back" onclick="goList()">&larr; all debates</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 4px;">
+      <h2 style="font-family:'Fraunces',serif;font-weight:500;font-size:20px;margin:0;">Messages</h2>
+      <button class="btn ghost" style="font-size:12.5px;padding:6px 12px;" onclick="goInbox()">Refresh</button>
+    </div>
+    ${rows}
+  `;
+}
+
+function renderChat(app){
+  const t = state.currentThread;
+  const av = avatarStyle(state.chatWithName);
+  if(!t){
+    app.innerHTML = renderHeader() + `<div class="loading">loading conversation…</div>`;
+    return;
+  }
+  const msgsHtml = t.messages.length
+    ? t.messages.map(m => {
+        const mine = m.author === state.myName;
+        return `<div class="msg ${mine?'mine':'theirs'}">${esc(m.text)}<div class="m-time">${timeAgo(m.ts)}</div></div>`;
+      }).join('')
+    : `<div class="thread-empty">No messages yet. Say hello.</div>`;
+
+  app.innerHTML = renderHeader() + `
+    <button class="back" onclick="goInbox()">&larr; messages</button>
+    <div class="chat-head">
+      <div class="avatar" style="background:${av.bg};color:${av.text};">${esc(initials(state.chatWithName))}</div>
+      <h1>${esc(state.chatWithName)}</h1>
+      <button class="btn ghost" style="font-size:12px;padding:5px 10px;" onclick="refreshChat()">Refresh</button>
+    </div>
+    ${state.chatError ? `<div class="banner"><span>Having trouble syncing this conversation.</span><button class="btn ghost" onclick="refreshChat()">Retry</button></div>` : ''}
+    <div class="thread">${msgsHtml}</div>
+    <div class="msg-input-row">
+      <textarea id="chat-msg" placeholder="Write a message…"></textarea>
+      <button class="btn primary" id="chat-send-btn" onclick="sendChatMsg()">Send</button>
+    </div>
+  `;
+}
+
+/* ---------- example data ---------- */
+async function loadExamples(){
+  const now = Date.now();
+  const examples = [
+    {
+      title: 'Cats are better pets than dogs',
+      description: 'The eternal household debate.',
+      args: [
+        { side:'pro', author:'Maya', text:'Cats are low-maintenance — no daily walks required, and they do fine home alone for a full workday.', votes:5 },
+        { side:'pro', author:'Devon', text:'Cats groom themselves, so you skip the bathing battle entirely.', votes:2 },
+        { side:'con', author:'Priya', text:'Dogs offer real loyalty and are far more trainable for tasks like fetching or guarding.', votes:4 },
+        { side:'con', author:'Sam', text:'Dogs get you outside and moving every day, which is genuinely good for your own health too.', votes:3 }
+      ]
+    },
+    {
+      title: 'Remote work is better than office work',
+      description: 'Where should the 9-to-5 actually happen?',
+      args: [
+        { side:'pro', author:'Jordan', text:'No commute means more time for family, hobbies, or just sleep.', votes:7 },
+        { side:'pro', author:'Lena', text:'People are demonstrably more productive without constant office interruptions.', votes:3 },
+        { side:'con', author:'Chris', text:'In-person collaboration sparks ideas that a Slack thread never will.', votes:6 },
+        { side:'con', author:'Aisha', text:'New hires learn company culture far faster sitting next to experienced teammates.', votes:2 }
+      ]
+    },
+    {
+      title: 'Pineapple belongs on pizza',
+      description: 'A lighter one to warm up on.',
+      args: [
+        { side:'pro', author:'Noah', text:'Sweet and salty is a classic pairing — pineapple just applies it to pizza.', votes:8 },
+        { side:'con', author:'Grace', text:"Pizza is a savory dish; the fruit undermines the whole flavor profile.", votes:9 }
+      ]
+    }
+  ];
+  for(const ex of examples){
+    const topicId = uid();
+    const topicArgs = ex.args.map((a, i) => ({
+      id: uid(), side: a.side, text: a.text, votes: a.votes, author: a.author,
+      createdAt: now - (ex.args.length - i) * 3600000
+    }));
+    const topic = {
+      id: topicId, title: ex.title, description: ex.description,
+      createdAt: now - Math.floor(Math.random()*5) * 86400000,
+      proCount: topicArgs.filter(a=>a.side==='pro').length,
+      conCount: topicArgs.filter(a=>a.side==='con').length
+    };
+    state.topics.push(topic);
+    await saveArgs(topicId, topicArgs);
+  }
+  await saveTopics();
+  render();
+}
+
+function goList(){ state.view='list'; state.currentTopicId=null; state.currentArgs=null; stopPolling(); render(); }
+function goNew(){ state.view='new'; stopPolling(); render(); }
+
+(async function init(){
+  try{
+    await Promise.all([ensureName(), loadTopics()]);
+    await pollInbox();
+  }catch(e){
+    if(!state.topics) state.topics = [];
+  }finally{
+    render();
+    setInterval(pollInbox, 6000);
+  }
+})();
+</script>
+</body>
+</html>
