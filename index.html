@@ -49,14 +49,13 @@
   .wordmark{
     font-family:'Manrope', sans-serif;
     font-size:24px;font-weight:800;letter-spacing:-0.02em;
-    display:flex;align-items:center;gap:10px;cursor:pointer;color:var(--ink);
+    display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--ink);
   }
   .logo-mark{
-    width:32px;height:32px;border-radius:9px;background:var(--logo-red);
-    color:#fff;display:flex;align-items:center;justify-content:center;
-    font-family:'Manrope',sans-serif;font-weight:800;font-size:16px;letter-spacing:0;
-    flex-shrink:0;box-shadow:0 2px 6px rgba(214,41,63,.35);
+    width:26px;height:32px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
   }
+  .logo-mark svg{width:100%;height:100%;display:block;}
   .tag{font-size:14px;color:var(--ink-mute);font-weight:500;}
   .btn{
     font-family:'Public Sans',sans-serif;font-size:15px;font-weight:600;
@@ -223,8 +222,10 @@
   .col-empty{font-size:14px;color:var(--ink-mute);padding:24px;text-align:center;background:var(--surface-sunken);border-radius:12px;margin-bottom:16px;}
   .loading{padding:72px 0;text-align:center;color:var(--ink-mute);font-size:15px;}
 
-  .modal-backdrop{position:fixed;inset:0;background:rgba(24,29,39,0.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
-  .modal{background:var(--surface);border-radius:20px;border:1px solid var(--hairline);padding:34px;max-width:420px;width:100%;box-shadow:var(--shadow-lg);}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(24,29,39,0.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;animation:backdropIn .18s ease-out;}
+  .modal{background:var(--surface);border-radius:20px;border:1px solid var(--hairline);padding:34px;max-width:420px;width:100%;box-shadow:var(--shadow-lg);animation:modalIn .22s cubic-bezier(.2,.8,.2,1);}
+  @keyframes backdropIn{from{opacity:0;}to{opacity:1;}}
+  @keyframes modalIn{from{opacity:0;transform:translateY(10px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);}}
   .modal h3{font-family:'Manrope',sans-serif;font-size:23px;font-weight:800;margin:0 0 18px;color:var(--ink);letter-spacing:-0.01em;}
   .modal .side-choice{display:flex;gap:12px;margin:10px 0 20px;}
   .modal .side-choice button{flex:1;padding:16px;border-radius:12px;border:1.5px solid var(--hairline-strong);background:var(--paper);cursor:pointer;font-family:'Manrope',sans-serif;font-size:17px;font-weight:700;}
@@ -264,15 +265,17 @@
     position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
     background:var(--ink);color:#fff;font-size:14.5px;font-weight:500;padding:13px 24px;
     border-radius:12px;z-index:60;box-shadow:var(--shadow-lg);
+    animation:toastIn .25s cubic-bezier(.2,.8,.2,1);
   }
+  @keyframes toastIn{from{opacity:0;transform:translate(-50%,10px);}to{opacity:1;transform:translate(-50%,0);}}
 
   /* Inbox / profile list */
   .thread-row{
     display:flex;align-items:center;gap:16px;padding:20px 22px;border-radius:14px;
     background:var(--surface);border:1px solid var(--hairline);margin-bottom:10px;cursor:pointer;
-    transition:box-shadow .15s;
+    transition:box-shadow .15s,transform .15s;
   }
-  .thread-row:hover{box-shadow:var(--shadow-sm);}
+  .thread-row:hover{box-shadow:var(--shadow-sm);transform:translateY(-1px);}
   .avatar{
     width:46px;height:46px;border-radius:50%;flex-shrink:0;
     display:flex;align-items:center;justify-content:center;
@@ -284,17 +287,23 @@
   .thread-time{font-size:12.5px;color:var(--ink-mute);white-space:nowrap;font-weight:500;}
   .thread-preview{font-size:14px;color:var(--ink-soft);margin:3px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .thread-preview.unread{color:var(--ink);font-weight:600;}
-  .unread-dot{width:9px;height:9px;border-radius:50%;background:var(--wine);flex-shrink:0;}
+  .unread-dot{width:9px;height:9px;border-radius:50%;background:var(--wine);flex-shrink:0;animation:unreadPulse 1.8s ease-in-out infinite;}
+  @keyframes unreadPulse{0%,100%{box-shadow:0 0 0 0 rgba(122,35,51,.35);}50%{box-shadow:0 0 0 5px rgba(122,35,51,0);}}
 
   /* Chat view */
   .chat-head{display:flex;align-items:center;gap:14px;margin-bottom:26px;}
   .chat-head .avatar{width:42px;height:42px;font-size:15px;}
   .chat-head h1{font-family:'Manrope',sans-serif;font-size:25px;font-weight:800;margin:0;flex:1;letter-spacing:-0.01em;}
-  .thread{display:flex;flex-direction:column;gap:12px;margin-bottom:22px;min-height:140px;}
-  .msg{max-width:70%;padding:13px 18px;border-radius:16px;font-size:15px;line-height:1.55;}
+  .thread{display:flex;flex-direction:column;margin-bottom:22px;min-height:140px;}
+  .msg{max-width:70%;padding:12px 17px;border-radius:16px;font-size:15px;line-height:1.55;margin-bottom:14px;box-shadow:var(--shadow-sm);}
+  .msg.msg-mid{margin-bottom:3px;}
   .msg .m-time{font-size:11px;margin-top:6px;opacity:.6;}
   .msg.mine{align-self:flex-end;background:var(--ink);color:#fff;border-bottom-right-radius:4px;}
+  .msg.mine.msg-cont{border-top-right-radius:4px;}
   .msg.theirs{align-self:flex-start;background:var(--surface);border:1px solid var(--hairline);color:var(--ink);border-bottom-left-radius:4px;}
+  .msg.theirs.msg-cont{border-top-left-radius:4px;}
+  .msg.msg-new{animation:msgIn .32s cubic-bezier(.2,.8,.2,1);}
+  @keyframes msgIn{from{opacity:0;transform:translateY(10px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);}}
   .thread-empty{text-align:center;color:var(--ink-mute);font-size:14.5px;padding:36px 0;}
   .msg-input-row{display:flex;gap:10px;}
   .msg-input-row textarea{flex:1;min-height:50px;margin:0;}
@@ -792,8 +801,11 @@ async function openChat(tid, otherUid, otherName){
   pushUrl('');
   render();
   const threadUnsub = fb.onSnapshot(fb.doc(db, 'threads', tid), d => {
-    state.currentThread = d.exists() ? { id: d.id, ...d.data() } : null;
-    render();
+    const newThread = d.exists() ? { id: d.id, ...d.data() } : null;
+    const relevantKeys = t => t ? JSON.stringify({ lastText: t.lastText, lastAuthorUid: t.lastAuthorUid, lastReadBy: t.lastReadBy }) : null;
+    const changed = relevantKeys(state.currentThread) !== relevantKeys(newThread);
+    state.currentThread = newThread;
+    if(changed) render();
   }, err => console.error('thread sub error', err));
   const msgsUnsub = fb.onSnapshot(
     fb.query(fb.collection(db, 'threads', tid, 'messages'), fb.orderBy('ts', 'asc')),
@@ -905,7 +917,7 @@ function renderHeader(){
         <button class="auth-btn filled" onclick="openAuthModal('signup')">Sign up</button>
       </div>`;
   return `<header class="site">
-    <div class="wordmark" onclick="goList()"><span class="logo-mark">R</span><span>Rebuttal</span></div>
+    <div class="wordmark" onclick="goList()"><span class="logo-mark"><svg viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 0L2 18.5H11.5L9 32L22 12.5H12.5L14.5 0Z" fill="var(--logo-red)"/></svg></span><span>Rebuttal</span></div>
     <div class="nav-right">
       <div class="tag">pick a side. make your case.</div>
       ${authSection}
@@ -1160,12 +1172,22 @@ function renderChat(app){
     ? (t.lastReadBy[state.chatWithUid].toMillis ? t.lastReadBy[state.chatWithUid].toMillis() : t.lastReadBy[state.chatWithUid])
     : 0;
 
+  const prevCount = state.lastRenderedMsgCount; // before this render updates it, so we know what's genuinely new
+
   const msgsHtml = state.chatMessages.length
     ? state.chatMessages.map((m, i) => {
         const mine = m.authorUid === state.user.uid;
         const msgTs = m.ts ? (m.ts.toMillis ? m.ts.toMillis() : m.ts) : 0;
         const showSeen = mine && i === lastMineIdx && otherReadTs >= msgTs && msgTs > 0;
-        return `<div class="msg ${mine?'mine':'theirs'}">${esc(m.text)}<div class="m-time">${timeAgo(m.ts)}${showSeen ? ' · Seen' : ''}</div></div>`;
+        const nextSame = i < state.chatMessages.length - 1 && state.chatMessages[i+1].authorUid === m.authorUid;
+        const prevSame = i > 0 && state.chatMessages[i-1].authorUid === m.authorUid;
+        const isNew = prevCount >= 0 && i >= prevCount;
+        const classes = ['msg', mine ? 'mine' : 'theirs'];
+        if(nextSame) classes.push('msg-mid');
+        if(prevSame) classes.push('msg-cont');
+        if(isNew) classes.push('msg-new');
+        const timeHtml = nextSame ? '' : `<div class="m-time">${timeAgo(m.ts)}${showSeen ? ' · Seen' : ''}</div>`;
+        return `<div class="${classes.join(' ')}">${esc(m.text)}${timeHtml}</div>`;
       }).join('')
     : `<div class="thread-empty">No messages yet. Say hello.</div>`;
 
