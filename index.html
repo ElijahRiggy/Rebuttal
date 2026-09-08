@@ -337,6 +337,10 @@
   .profile-field{background:var(--surface-sunken);border-radius:12px;padding:10px 16px;}
   .pf-label{display:block;font-size:11px;color:var(--ink-mute);font-weight:700;letter-spacing:.02em;margin-bottom:2px;}
   .pf-value{display:block;font-size:14px;color:var(--ink);font-weight:600;}
+  .section-heading{font-family:'Manrope',sans-serif;font-size:18px;font-weight:800;margin:8px 0 16px;letter-spacing:-0.01em;}
+  .photo-edit-row{display:flex;gap:20px;align-items:center;margin-bottom:22px;flex-wrap:wrap;}
+  .photo-edit-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+  .photo-hint{width:100%;font-size:12px;color:var(--ink-mute);margin:2px 0 0;}
   .thread-empty{text-align:center;color:var(--ink-mute);font-size:14.5px;padding:36px 0;}
   .msg-input-row{display:flex;gap:10px;}
   .msg-input-row textarea{flex:1;min-height:50px;margin:0;}
@@ -393,7 +397,8 @@ const state = {
   currentTopicId: null, currentTopic: null, currentArgs: [],
   threads: [], currentThreadId: null, currentThread: null, chatWithUid: null, chatWithName: null, chatMessages: [],
   chatAutoFocusPending: false, lastRenderedMsgCount: -1, inboxHasLoadedOnce: false,
-  viewingProfileUid: null, viewingProfile: null, viewingProfileLoaded: false, submittingProfile: false,
+  viewingProfileUid: null, viewingProfile: null, viewingProfileLoaded: false, viewingProfileDebates: [],
+  submittingProfile: false, pendingPhotoDataUrl: null,
   submittingTopic: false, submittingArg: { pro: false, con: false }, submittingMsg: false, submittingAuth: false,
   topicUnsubs: [], chatUnsubs: [], globalUnsubs: [],
   toastMsg: null, toastTimer: null
@@ -912,6 +917,7 @@ async function openProfile(uid){
   state.viewingProfileUid = uid;
   state.viewingProfile = null;
   state.viewingProfileLoaded = false;
+  state.viewingProfileDebates = [];
   pushUrl('');
   render();
   try{
@@ -922,6 +928,20 @@ async function openProfile(uid){
   }
   state.viewingProfileLoaded = true;
   render();
+  try{
+    const q = fb.query(fb.collection(db, 'topics'), fb.where('createdBy', '==', uid), fb.limit(50));
+    const snap = await fb.getDocs(q);
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    list.sort((a, b) => {
+      const at = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : a.createdAt) : 0;
+      const bt = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : b.createdAt) : 0;
+      return bt - at;
+    });
+    state.viewingProfileDebates = list;
+  }catch(e){
+    state.viewingProfileDebates = [];
+  }
+  render();
 }
 
 function goEditProfile(){
@@ -929,8 +949,57 @@ function goEditProfile(){
   cleanupTopicSubs();
   cleanupChatSubs();
   state.view = 'edit-profile';
+  state.pendingPhotoDataUrl = null;
   pushUrl('');
   render();
+}
+
+function updatePhotoPreview(){
+  const wrap = document.getElementById('p-photo-preview-wrap');
+  if(!wrap) return;
+  const existing = (state.viewingProfileUid === state.user.uid && state.viewingProfile) ? state.viewingProfile.photoURL : null;
+  const url = state.pendingPhotoDataUrl === 'REMOVE' ? null : (state.pendingPhotoDataUrl || existing);
+  wrap.innerHTML = avatarHtml(state.user.displayName, url, 'avatar-xl');
+}
+
+function handlePhotoFile(inputEl){
+  const file = inputEl.files && inputEl.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')){ alert('Please choose an image file.'); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 240;
+      let w = img.width, h = img.height;
+      if(w > h){ if(w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; } }
+      else { if(h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; } }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      let quality = 0.75;
+      let dataUrl = canvas.toDataURL('image/jpeg', quality);
+      while(dataUrl.length > 700000 && quality > 0.3){
+        quality -= 0.1;
+        dataUrl = canvas.toDataURL('image/jpeg', quality);
+      }
+      if(dataUrl.length > 900000){
+        alert("That image is too large even after compressing — try a smaller or simpler photo.");
+        return;
+      }
+      state.pendingPhotoDataUrl = dataUrl;
+      updatePhotoPreview();
+    };
+    img.onerror = () => alert("Couldn't read that image. Try a different file.");
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removePhoto(){
+  state.pendingPhotoDataUrl = 'REMOVE';
+  updatePhotoPreview();
 }
 
 async function submitProfile(){
@@ -939,21 +1008,26 @@ async function submitProfile(){
   const btn = document.getElementById('save-profile-btn');
   if(btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
   try{
-    const photoURL = document.getElementById('p-photo').value.trim();
     const bio = document.getElementById('p-bio').value.trim();
     const gender = document.getElementById('p-gender').value.trim();
     const occupation = document.getElementById('p-occupation').value.trim();
     const political = document.getElementById('p-political').value;
+    const existingPhoto = (state.viewingProfile && state.viewingProfileUid === state.user.uid) ? state.viewingProfile.photoURL : null;
+    let photoURL;
+    if(state.pendingPhotoDataUrl === 'REMOVE') photoURL = null;
+    else if(state.pendingPhotoDataUrl) photoURL = state.pendingPhotoDataUrl;
+    else photoURL = existingPhoto || null;
     await fb.setDoc(fb.doc(db, 'users', state.user.uid), {
       displayName: state.user.displayName, email: state.user.email,
-      photoURL: photoURL || null, bio: bio || null,
+      photoURL, bio: bio || null,
       gender: gender || null, occupation: occupation || null,
       political: (political && political !== 'Prefer not to say') ? political : null
     }, { merge: true });
+    state.pendingPhotoDataUrl = null;
     showToast('Profile saved');
     await openProfile(state.user.uid);
   }catch(e){
-    alert("Couldn't save your profile. Try again.");
+    alert("Couldn't save your profile. Try again — if the photo is large, try a smaller one.");
   }finally{
     state.submittingProfile = false;
   }
@@ -1367,6 +1441,25 @@ function renderProfile(app){
   if(p && p.gender) fields.push({ label: 'Gender', value: p.gender });
   if(p && p.political) fields.push({ label: 'Political leaning', value: p.political });
 
+  const debates = state.viewingProfileDebates || [];
+  const debatesHtml = debates.length
+    ? debates.map(t => {
+        const total = (t.proCount||0) + (t.conCount||0);
+        const proPct = total ? Math.round((t.proCount/total)*100) : 50;
+        return `<div class="row" onclick="openTopic('${t.id}')">
+          <div>
+            <div class="category-badge">${esc(t.category || 'Other')}</div>
+            <p class="row-title">${esc(t.title)}</p>
+            ${t.description ? `<p class="row-desc">${esc(t.description)}</p>` : ''}
+          </div>
+          <div class="row-meta">
+            <div class="score-bar"><div class="p" style="width:${proPct}%"></div><div class="c" style="width:${100-proPct}%"></div></div>
+            <span>${total} arg${total===1?'':'s'}</span>
+          </div>
+        </div>`;
+      }).join('')
+    : `<div class="empty"><h3>${isMe ? "You haven't" : `${esc(name)} hasn't`} started a debate yet</h3></div>`;
+
   app.innerHTML = renderHeader() + `
     <button class="back" onclick="goList()">&larr; all debates</button>
     <div class="profile-card">
@@ -1378,6 +1471,8 @@ function renderProfile(app){
         ${isMe ? `<button class="btn primary" onclick="goEditProfile()">Edit your profile</button>` : ''}
       </div>
     </div>
+    <h2 class="section-heading">${isMe ? 'Debates you started' : `Debates ${esc(name)} started`}</h2>
+    ${debatesHtml}
     ${renderFooter()}
   `;
 }
@@ -1389,8 +1484,18 @@ function renderEditProfile(app){
     <div class="panel">
       <h2>Edit your profile</h2>
       <p style="font-size:13.5px;color:var(--ink-soft);margin:-14px 0 22px;">Everything here is optional and public — anyone can see it if they click your name.</p>
-      <label for="p-photo">Photo URL</label>
-      <input type="text" id="p-photo" placeholder="https://... (a link to an image hosted anywhere)" value="${esc(p.photoURL || '')}">
+
+      <label>Profile photo</label>
+      <div class="photo-edit-row">
+        <div id="p-photo-preview-wrap">${avatarHtml(state.user.displayName, p.photoURL, 'avatar-xl')}</div>
+        <div class="photo-edit-actions">
+          <label class="btn ghost" for="p-photo-file" style="cursor:pointer;display:inline-block;">Upload a photo</label>
+          <input type="file" id="p-photo-file" accept="image/*" style="display:none;" onchange="handlePhotoFile(this)">
+          ${p.photoURL ? `<button type="button" class="btn ghost" onclick="removePhoto()">Remove photo</button>` : ''}
+          <p class="photo-hint">JPG or PNG, resized automatically. Nothing is uploaded until you hit Save.</p>
+        </div>
+      </div>
+
       <label for="p-bio">Short bio</label>
       <textarea id="p-bio" rows="3" placeholder="A sentence about you or your debating style.">${esc(p.bio || '')}</textarea>
       <label for="p-occupation">Occupation</label>
@@ -1414,7 +1519,8 @@ function renderEditProfile(app){
 Object.assign(window, {
   goList, goNew, goInbox, openTopic, openChat, submitTopic, addArg, vote, voteTopic,
   shareTopic, challengeAuthor, startChallenge, sendChatMsg, setCategoryFilter, setSortMode,
-  openAuthModal, logOut, seedExampleDebate, openProfile, goEditProfile, submitProfile
+  openAuthModal, logOut, seedExampleDebate, openProfile, goEditProfile, submitProfile,
+  handlePhotoFile, removePhoto
 });
 
 /* ---------- init ---------- */
