@@ -66,7 +66,6 @@
   }
   html.dark body{ background:var(--paper); }
   html.dark input[type=text], html.dark textarea, html.dark select#t-category{ background:var(--surface); color:var(--ink); border-color:var(--hairline-strong); }
-  html.dark .msg.mine{ color:#0E1420; }
   html.dark .logo-mark svg path{ fill:var(--logo-red); }
   html.dark .modal .side-choice button{ background:var(--surface-sunken); }
   *{box-sizing:border-box;}
@@ -103,7 +102,7 @@
     border:1.5px solid var(--ink);background:transparent;color:var(--ink);
     padding:12px 22px;border-radius:10px;cursor:pointer;transition:all .15s;
   }
-  .btn:hover{background:var(--ink);color:#fff;}
+  .btn:hover{background:var(--ink);color:var(--paper);}
   .btn:disabled{opacity:.45;cursor:default;}
   .btn:disabled:hover{background:transparent;color:var(--ink);}
   .btn.ghost{border-color:var(--hairline-strong);color:var(--ink-soft);background:var(--surface);}
@@ -138,7 +137,7 @@
   .category-filters{display:flex;flex-wrap:wrap;gap:8px;}
   .category-chip{font-family:'Public Sans',sans-serif;font-size:13.5px;font-weight:600;color:var(--ink-soft);background:var(--surface-sunken);border:none;border-radius:20px;padding:7px 15px;cursor:pointer;}
   .category-chip:hover{background:var(--hairline-strong);color:var(--ink);}
-  .category-chip.active{background:var(--ink);color:#fff;}
+  .category-chip.active{background:var(--ink);color:var(--paper);}
   .sort-toggle{display:flex;gap:4px;background:var(--surface-sunken);border-radius:20px;padding:3px;}
   .sort-btn{font-family:'Public Sans',sans-serif;font-size:13px;font-weight:600;color:var(--ink-soft);background:none;border:none;border-radius:16px;padding:6px 14px;cursor:pointer;}
   .sort-btn.active{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm);}
@@ -286,7 +285,7 @@
   .auth-nav{display:flex;align-items:center;gap:16px;}
   .auth-btn{font-family:'Public Sans',sans-serif;font-size:14.5px;font-weight:600;color:var(--ink-soft);background:none;border:none;padding:6px 0;cursor:pointer;}
   .auth-btn:hover{color:var(--ink);}
-  .auth-btn.filled{background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;}
+  .auth-btn.filled{background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:10px;}
   .auth-btn.filled:hover{background:var(--wine);}
   .user-chip{font-size:14px;color:var(--ink-soft);}
   .user-chip strong{color:var(--ink);font-weight:700;}
@@ -310,7 +309,7 @@
   .share-btn:hover{background:var(--hairline-strong);color:var(--ink);}
   .toast{
     position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
-    background:var(--ink);color:#fff;font-size:14.5px;font-weight:500;padding:13px 24px;
+    background:var(--ink);color:var(--paper);font-size:14.5px;font-weight:500;padding:13px 24px;
     border-radius:12px;z-index:60;box-shadow:var(--shadow-lg);
     animation:toastIn .25s cubic-bezier(.2,.8,.2,1);
   }
@@ -357,7 +356,7 @@
   .msg{max-width:70%;padding:12px 17px;border-radius:16px;font-size:15px;line-height:1.55;margin-bottom:14px;box-shadow:var(--shadow-sm);}
   .msg.msg-mid{margin-bottom:3px;}
   .msg .m-time{font-size:11px;margin-top:6px;opacity:.6;}
-  .msg.mine{align-self:flex-end;background:var(--ink);color:#fff;border-bottom-right-radius:4px;}
+  .msg.mine{align-self:flex-end;background:var(--ink);color:var(--paper);border-bottom-right-radius:4px;}
   .msg.mine.msg-cont{border-top-right-radius:4px;}
   .msg.theirs{background:var(--surface);border:1px solid var(--hairline);color:var(--ink);border-bottom-left-radius:4px;}
   .msg.theirs.msg-cont{border-top-left-radius:4px;}
@@ -373,6 +372,8 @@
   .profile-card{display:flex;gap:28px;align-items:flex-start;background:var(--surface);border:1px solid var(--hairline);border-radius:20px;padding:36px;margin-bottom:28px;box-shadow:var(--shadow-sm);flex-wrap:wrap;}
   .profile-main{flex:1;min-width:220px;}
   .profile-main h1{font-family:'Manrope',sans-serif;font-size:28px;font-weight:800;margin:0 0 10px;letter-spacing:-0.01em;}
+  .follow-stats{display:flex;gap:16px;font-size:13.5px;color:var(--ink-soft);margin:0 0 12px;}
+  .follow-stats strong{color:var(--ink);font-weight:700;}
   .profile-bio{font-size:15px;color:var(--ink-soft);line-height:1.6;margin:0 0 18px;max-width:520px;}
   .profile-bio-empty{color:var(--ink-mute);font-style:italic;}
   .profile-fields{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;}
@@ -409,7 +410,7 @@
   .chip-select{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;}
   .option-chip{font-family:'Public Sans',sans-serif;font-size:13px;font-weight:600;color:var(--ink-soft);background:var(--surface-sunken);border:1.5px solid transparent;border-radius:18px;padding:8px 15px;cursor:pointer;transition:.12s;}
   .option-chip:hover{border-color:var(--hairline-strong);}
-  .option-chip.active{background:var(--ink);color:#fff;}
+  .option-chip.active{background:var(--ink);color:var(--paper);}
 
   /* Edit-profile form sections */
   .form-section{margin-bottom:28px;padding-bottom:26px;border-bottom:1px solid var(--hairline);}
@@ -436,7 +437,7 @@
   .reply-input-row{display:flex;gap:8px;margin-top:10px;}
   .reply-input-row textarea{flex:1;min-height:40px;margin:0;font-size:13.5px;padding:8px 12px;}
   .reply-input-row .btn{padding:8px 14px;font-size:13px;}
-  .msg-delete{position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;border:2px solid var(--paper);font-size:13px;line-height:1;cursor:pointer;display:none;align-items:center;justify-content:center;}
+  .msg-delete{position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--paper);border:2px solid var(--paper);font-size:13px;line-height:1;cursor:pointer;display:none;align-items:center;justify-content:center;}
   .msg.mine{position:relative;}
   .msg.mine:hover .msg-delete{display:flex;}
 
@@ -502,6 +503,7 @@ const state = {
   threads: [], currentThreadId: null, currentThread: null, chatWithUid: null, chatWithName: null, chatMessages: [],
   chatAutoFocusPending: false, lastRenderedMsgCount: -1, inboxHasLoadedOnce: false,
   viewingProfileUid: null, viewingProfile: null, viewingProfileLoaded: false, viewingProfileDebates: [],
+  viewingProfileFollowStats: { following: 0, followers: 0 },
   submittingProfile: false, pendingPhotoDataUrl: null, myProfile: null, userMenuOpen: false, selectedPolitical: null,
   editingTopicId: null, searchQuery: '', myBlocks: [], profileFieldVisibility: { gender: true, occupation: true, political: true },
   notificationsEnabled: false, verificationBannerDismissed: false, openReplyThreads: [], repliesByArg: {},
@@ -1269,6 +1271,7 @@ async function followUser(uid, name){
       followerUid: state.user.uid, followedUid: uid, createdAt: fb.serverTimestamp()
     });
     if(!state.myFollowing.includes(uid)) state.myFollowing.push(uid);
+    if(state.viewingProfileUid === uid) state.viewingProfileFollowStats.followers++;
     showToast(`Following ${name}`);
     render();
   }catch(e){
@@ -1279,6 +1282,7 @@ async function unfollowUser(uid){
   try{
     await fb.deleteDoc(fb.doc(db, 'follows', state.user.uid + '_' + uid));
     state.myFollowing = state.myFollowing.filter(u => u !== uid);
+    if(state.viewingProfileUid === uid) state.viewingProfileFollowStats.followers = Math.max(0, state.viewingProfileFollowStats.followers - 1);
     showToast('Unfollowed');
     render();
   }catch(e){
@@ -1496,6 +1500,7 @@ async function openProfile(uid){
   state.viewingProfileLoaded = false;
   state.viewingProfileDebates = [];
   state.viewingProfileArguments = [];
+  state.viewingProfileFollowStats = { following: 0, followers: 0 };
   pushUrl('');
   render();
   try{
@@ -1533,6 +1538,16 @@ async function openProfile(uid){
   }catch(e){
     // collection-group queries need a Firestore index the first time — see console for a one-click link
     state.viewingProfileArguments = [];
+  }
+  render();
+  try{
+    const [followingSnap, followersSnap] = await Promise.all([
+      fb.getDocs(fb.query(fb.collection(db, 'follows'), fb.where('followerUid', '==', uid))),
+      fb.getDocs(fb.query(fb.collection(db, 'follows'), fb.where('followedUid', '==', uid)))
+    ]);
+    state.viewingProfileFollowStats = { following: followingSnap.docs.length, followers: followersSnap.docs.length };
+  }catch(e){
+    state.viewingProfileFollowStats = { following: 0, followers: 0 };
   }
   render();
 }
@@ -2226,6 +2241,10 @@ function renderProfile(app){
       ${avatarHtml(name, p && p.photoURL, 'avatar-xl')}
       <div class="profile-main">
         <h1>${esc(name)}</h1>
+        <div class="follow-stats">
+          <span><strong>${state.viewingProfileFollowStats.following}</strong> Following</span>
+          <span><strong>${state.viewingProfileFollowStats.followers}</strong> Follower${state.viewingProfileFollowStats.followers===1?'':'s'}</span>
+        </div>
         ${p && p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : (isMe ? `<p class="profile-bio profile-bio-empty">You haven't added a bio yet.</p>` : '')}
         ${fields.length ? `<div class="profile-fields">${fields.map(f => `<div class="profile-field"><span class="pf-label">${esc(f.label)}</span><span class="pf-value">${esc(f.value)}</span></div>`).join('')}</div>` : ''}
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
