@@ -58,7 +58,7 @@ service cloud.firestore {
         (
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isMember == true ||
           !('lastTopicPostAt' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) ||
-          request.time > get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastTopicPostAt + duration.value(5, 'h')
+          request.time > get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastTopicPostAt + duration.value(24, 'h')
         );
       allow update: if request.auth != null && (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes','voterChoices','proCount','conCount']) ||
@@ -181,7 +181,7 @@ Until you do this, the live site shows a plain "connect Firebase" setup screen i
 
 ### Debate cooldown and Stripe Membership
 
-Free accounts can start **one new debate every 5 hours**. Arguing, voting, replying, and messaging are all unlimited regardless — the cooldown only applies to starting brand-new debates. **Members** (paid, via Stripe) skip this entirely.
+Free accounts can start **one new debate every 24 hours**. Arguing, voting, replying, and messaging are all unlimited regardless — the cooldown only applies to starting brand-new debates. **Members** (paid, via Stripe) skip this entirely.
 
 **How the cooldown is enforced:** every time you post a debate, the timestamp is saved to your own user profile in Firestore (not just kept in the browser), so refreshing the page doesn't reset it. It's also checked in the Firestore rules below, so it's not purely a client-side suggestion. Being fully honest about the limits of that: since your own account already has permission to edit your own profile (needed for normal profile editing), a technically determined person could still directly rewrite that timestamp field via Firestore's API and bypass the wait — the same category of limitation as the block feature and the old posting cooldown. It stops casual bypassing (like just hitting refresh), not a determined attacker; a fully tamper-proof version would need a Cloud Function, which brings back the same billing tradeoff mentioned elsewhere in this doc.
 
@@ -215,3 +215,18 @@ This is now built and live in the code, in `api/stripe-webhook.js`, plus a `pack
 6. **Do one real end-to-end test with a real account** before trusting it fully: sign up for your own Monthly membership with a real card (you can refund yourself after), confirm `isMember` actually flips to `true` on your Firestore user doc within a few seconds, then cancel the subscription in Stripe and confirm it flips back to `false`.
 
 One honest limitation: this matches payments to accounts **by email**. If someone pays with a different email than the one their Rebuttal account uses, the webhook won't find a match (you'll see it in the function logs) and you'd need to grant it manually that one time.
+
+### Letting members cancel themselves — Stripe Customer Portal
+
+Members can now cancel or manage their own subscription from inside Rebuttal, via a "Manage membership" button (shows up on the Membership page once you're a monthly member — lifetime members don't see it, since there's nothing recurring to cancel). This uses `api/create-portal-session.js`, a second small serverless function that securely verifies who's asking (via their Firebase login) and redirects them into Stripe's own hosted portal. It reuses the same `STRIPE_SECRET_KEY` and `FIREBASE_SERVICE_ACCOUNT_KEY` you already set up — no new environment variables needed.
+
+**One thing you must do before this works:** Stripe → Settings → Billing → **Customer portal** → Activate it. Until you do, clicking "Manage membership" will fail with an error, since Stripe won't have a portal configured to redirect into. While you're in there, it's worth setting your business name/logo so the portal looks like it belongs to Rebuttal rather than a generic Stripe page.
+
+### Member perks (current)
+
+- **Unlimited debates** (vs. one every 24 hours on the free plan)
+- **A "★ Member" badge** — shown on their profile, in the account menu, and to anyone chatting with them
+- **A custom profile accent color** — a small colored ring around their avatar, picked from a palette in Edit Profile. Free accounts see a locked teaser pointing at the Membership page instead of the picker.
+- **Ad-free browsing**, once AdSense is live — the ad slot automatically hides for members and never re-appears for them. (Not visible yet since ads themselves aren't turned on.)
+
+Arguing, voting, and messaging stay unlimited for everyone regardless of membership — those were never gated, by design.
