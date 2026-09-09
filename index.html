@@ -159,6 +159,16 @@
   .membership-buy-btn{font-size:16px;padding:14px 32px;border-radius:26px;text-decoration:none;display:inline-block;}
   .membership-fine-print{font-size:12.5px;color:var(--ink-mute);margin:14px 0 0;}
   .membership-cta-active{background:var(--amber-tint);color:var(--amber);font-weight:700;border-color:var(--amber);}
+
+  .pricing-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media (max-width:640px){ .pricing-grid{grid-template-columns:1fr;} }
+  .pricing-card{position:relative;background:var(--surface);border:1.5px solid var(--hairline);border-radius:20px;padding:30px;text-align:center;}
+  .pricing-card-featured{border-color:var(--amber);box-shadow:var(--shadow-md);}
+  .pricing-tag{position:absolute;top:-11px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:var(--amber);border-radius:10px;padding:3px 12px;}
+  .pricing-card h3{font-family:'Manrope',sans-serif;font-size:19px;font-weight:800;margin:6px 0 8px;}
+  .pricing-price{font-family:'Manrope',sans-serif;font-size:24px;font-weight:800;color:var(--ink);margin:0 0 4px;}
+  .pricing-desc{font-size:13px;color:var(--ink-soft);margin:0 0 20px;min-height:34px;}
+  .pricing-card .membership-buy-btn{width:100%;}
   .messages-nav{
     font-family:'Public Sans',sans-serif;font-size:14.5px;font-weight:600;color:var(--ink-soft);
     background:var(--surface-sunken);border:none;border-radius:20px;padding:8px 16px;cursor:pointer;
@@ -2088,7 +2098,8 @@ function filterRowsBySearch(q, skipStateUpdate){
 }
 
 const SUPPORT_URL = 'https://ko-fi.com/riggy80083';
-const MEMBERSHIP_URL = 'https://buy.stripe.com/YOUR_PAYMENT_LINK'; // replace with your real Stripe Payment Link
+const MEMBERSHIP_URL = 'https://buy.stripe.com/YOUR_PAYMENT_LINK'; // replace with your real Stripe Payment Link (monthly)
+const LIFETIME_URL = 'https://buy.stripe.com/YOUR_LIFETIME_PAYMENT_LINK'; // replace with your real Stripe Payment Link (one-time $12)
 const CONTACT_EMAIL = 'veltrixriggs@gmail.com';
 
 function renderFooter(){
@@ -2166,10 +2177,22 @@ function renderMembership(app){
     </div>
     ${member
       ? `<div class="membership-cta membership-cta-active">You're already a Member — thank you for supporting Rebuttal.</div>`
-      : `<div class="membership-cta">
-          <a class="btn primary membership-buy-btn" href="${MEMBERSHIP_URL}" target="_blank" rel="noopener">Become a Member</a>
-          <p class="membership-fine-print">Handled securely by Stripe. Cancel any time.</p>
-        </div>`}
+      : `<div class="pricing-grid">
+          <div class="pricing-card">
+            <h3>Monthly</h3>
+            <p class="pricing-price">Billed monthly</p>
+            <p class="pricing-desc">Cancel any time.</p>
+            <a class="btn primary membership-buy-btn" href="${MEMBERSHIP_URL}" target="_blank" rel="noopener">Become a Member</a>
+          </div>
+          <div class="pricing-card pricing-card-featured">
+            <span class="pricing-tag">One-time</span>
+            <h3>Lifetime</h3>
+            <p class="pricing-price">$12 once</p>
+            <p class="pricing-desc">Pay once, member forever. No recurring charge, ever.</p>
+            <a class="btn primary membership-buy-btn" href="${LIFETIME_URL}" target="_blank" rel="noopener">Get Lifetime Access</a>
+          </div>
+        </div>
+        <p class="membership-fine-print" style="text-align:center;">Both handled securely by Stripe.</p>`}
     ${renderFooter()}
   `;
 }
