@@ -169,6 +169,22 @@
   .pricing-price{font-family:'Manrope',sans-serif;font-size:24px;font-weight:800;color:var(--ink);margin:0 0 4px;}
   .pricing-desc{font-size:13px;color:var(--ink-soft);margin:0 0 20px;min-height:34px;}
   .pricing-card .membership-buy-btn{width:100%;}
+
+  .pricing-grid-3{grid-template-columns:repeat(3,1fr);align-items:stretch;}
+  @media (max-width:820px){ .pricing-grid-3{grid-template-columns:1fr;} }
+  .pricing-grid-3 .pricing-card{display:flex;flex-direction:column;text-align:left;padding:28px 26px;}
+  .pricing-plan-name{font-family:'Public Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ink-mute);text-transform:uppercase;letter-spacing:.05em;}
+  .pricing-price-row{display:flex;align-items:baseline;gap:6px;margin:10px 0 4px;}
+  .pricing-price-num{font-family:'Manrope',sans-serif;font-size:38px;font-weight:800;color:var(--ink);letter-spacing:-0.02em;}
+  .pricing-price-suffix{font-size:14px;color:var(--ink-mute);font-weight:600;}
+  .pricing-grid-3 .pricing-desc{text-align:left;margin:0 0 20px;min-height:auto;}
+  .pricing-checklist{list-style:none;margin:0 0 24px;padding:0;flex:1;display:flex;flex-direction:column;gap:12px;}
+  .pricing-checklist li{display:flex;align-items:flex-start;gap:9px;font-size:13.5px;color:var(--ink-soft);line-height:1.4;}
+  .check-icon{color:var(--forest);flex-shrink:0;margin-top:1px;}
+  .dash-item{color:var(--ink-mute);}
+  .dash-icon{color:var(--ink-mute);flex-shrink:0;font-weight:700;}
+  .membership-current-plan{cursor:default;pointer-events:none;opacity:.7;}
+  .pricing-grid-3 .pricing-tag{position:absolute;top:-11px;left:26px;transform:none;}
   .messages-nav{
     font-family:'Public Sans',sans-serif;font-size:14.5px;font-weight:600;color:var(--ink-soft);
     background:var(--surface-sunken);border:none;border-radius:20px;padding:8px 16px;cursor:pointer;
@@ -2100,6 +2116,7 @@ function filterRowsBySearch(q, skipStateUpdate){
 const SUPPORT_URL = 'https://ko-fi.com/riggy80083';
 const MEMBERSHIP_URL = 'https://buy.stripe.com/YOUR_PAYMENT_LINK'; // replace with your real Stripe Payment Link (monthly)
 const LIFETIME_URL = 'https://buy.stripe.com/YOUR_LIFETIME_PAYMENT_LINK'; // replace with your real Stripe Payment Link (one-time $12)
+const MONTHLY_PRICE = '$3'; // edit to match whatever you set in Stripe
 const CONTACT_EMAIL = 'veltrixriggs@gmail.com';
 
 function renderFooter(){
@@ -2154,45 +2171,58 @@ function renderAbout(app){
 
 function renderMembership(app){
   const member = isMember();
+  const checkItem = (text) => `<li><svg class="check-icon" viewBox="0 0 16 16" width="15" height="15"><path d="M3 8.5L6.2 11.5L13 4.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>${text}</li>`;
+  const dashItem = (text) => `<li class="dash-item"><span class="dash-icon">—</span>${text}</li>`;
+
   app.innerHTML = renderHeader() + `
     <button class="back" onclick="goList()">&larr; all debates</button>
     <div class="membership-hero">
       <span class="membership-eyebrow">Rebuttal Membership</span>
       <h1>Debate without the wait.</h1>
-      <p>Free accounts can start a new debate every 5 hours. Members can start as many as they want, whenever they want — arguing, voting, and messaging are already unlimited for everyone.</p>
+      <p>Arguing, voting, and messaging are unlimited for everyone, always. Membership only changes one thing: how often you can start a brand-new debate.</p>
     </div>
-    <div class="membership-grid">
-      <div class="membership-feature">
-        <h3>Unlimited debates</h3>
-        <p>No 5-hour wait between starting new debates. Post as many as you actually have things to say about.</p>
+
+    ${member ? `<div class="membership-cta membership-cta-active">You're already a Member — thank you for supporting Rebuttal.</div>` : `
+    <div class="pricing-grid pricing-grid-3">
+      <div class="pricing-card">
+        <span class="pricing-plan-name">Free</span>
+        <div class="pricing-price-row"><span class="pricing-price-num">$0</span></div>
+        <p class="pricing-desc">Everyone starts here.</p>
+        <ul class="pricing-checklist">
+          ${dashItem('1 new debate every 5 hours')}
+          ${checkItem('Unlimited arguments &amp; voting')}
+          ${checkItem('Unlimited messaging')}
+        </ul>
+        <div class="btn ghost membership-buy-btn membership-current-plan">Your current plan</div>
       </div>
-      <div class="membership-feature">
-        <h3>Member badge</h3>
-        <p>A small badge next to your name, visible to anyone who opens your profile.</p>
+
+      <div class="pricing-card">
+        <span class="pricing-plan-name">Monthly</span>
+        <div class="pricing-price-row"><span class="pricing-price-num">${MONTHLY_PRICE}</span><span class="pricing-price-suffix">/month</span></div>
+        <p class="pricing-desc">Cancel any time.</p>
+        <ul class="pricing-checklist">
+          ${checkItem('Unlimited debates, any time')}
+          ${checkItem('Member badge on your profile')}
+          ${checkItem('Directly supports Rebuttal')}
+        </ul>
+        <a class="btn primary membership-buy-btn" href="${MEMBERSHIP_URL}" target="_blank" rel="noopener">Become a Member</a>
       </div>
-      <div class="membership-feature">
-        <h3>Supports the site directly</h3>
-        <p>Membership revenue goes straight to keeping Rebuttal running and improving.</p>
+
+      <div class="pricing-card pricing-card-featured">
+        <span class="pricing-tag">Best value</span>
+        <span class="pricing-plan-name">Lifetime</span>
+        <div class="pricing-price-row"><span class="pricing-price-num">$12</span><span class="pricing-price-suffix">once</span></div>
+        <p class="pricing-desc">Pay once, member forever.</p>
+        <ul class="pricing-checklist">
+          ${checkItem('Everything in Monthly')}
+          ${checkItem('One payment, no renewal')}
+          ${checkItem('Locks in the current price for good')}
+        </ul>
+        <a class="btn primary membership-buy-btn" href="${LIFETIME_URL}" target="_blank" rel="noopener">Get Lifetime Access</a>
       </div>
     </div>
-    ${member
-      ? `<div class="membership-cta membership-cta-active">You're already a Member — thank you for supporting Rebuttal.</div>`
-      : `<div class="pricing-grid">
-          <div class="pricing-card">
-            <h3>Monthly</h3>
-            <p class="pricing-price">Billed monthly</p>
-            <p class="pricing-desc">Cancel any time.</p>
-            <a class="btn primary membership-buy-btn" href="${MEMBERSHIP_URL}" target="_blank" rel="noopener">Become a Member</a>
-          </div>
-          <div class="pricing-card pricing-card-featured">
-            <span class="pricing-tag">One-time</span>
-            <h3>Lifetime</h3>
-            <p class="pricing-price">$12 once</p>
-            <p class="pricing-desc">Pay once, member forever. No recurring charge, ever.</p>
-            <a class="btn primary membership-buy-btn" href="${LIFETIME_URL}" target="_blank" rel="noopener">Get Lifetime Access</a>
-          </div>
-        </div>
-        <p class="membership-fine-print" style="text-align:center;">Both handled securely by Stripe.</p>`}
+    <p class="membership-fine-print" style="text-align:center;">Payments handled securely by Stripe. Rebuttal never sees or stores your card details.</p>
+    `}
     ${renderFooter()}
   `;
 }
