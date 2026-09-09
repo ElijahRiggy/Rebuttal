@@ -55,6 +55,7 @@ service cloud.firestore {
       allow create: if request.auth != null &&
         request.resource.data.title.size() <= 150 &&
         (!('description' in request.resource.data) || request.resource.data.description.size() <= 500) &&
+        (!('membersOnly' in request.resource.data) || request.resource.data.membersOnly == false || request.resource.data.creatorIsMember == true) &&
         (
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isMember == true ||
           !('lastTopicPostAt' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) ||
@@ -63,13 +64,18 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes','voterChoices','proCount','conCount']) ||
         (request.auth.uid == resource.data.createdBy &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','description','category','closed']))
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','description','category','closed','membersOnly']) &&
+         (!('membersOnly' in request.resource.data) || request.resource.data.membersOnly == false || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isMember == true))
       );
       allow delete: if request.auth != null && request.auth.uid == resource.data.createdBy;
 
       match /arguments/{argId} {
         allow read: if true;
-        allow create: if request.auth != null && request.resource.data.text.size() <= 1200;
+        allow create: if request.auth != null && request.resource.data.text.size() <= 1200 &&
+          (
+            get(/databases/$(database)/documents/topics/$(topicId)).data.membersOnly != true ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isMember == true
+          );
         allow update: if request.auth != null && (
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes','voterChoices','replyCount']) ||
           (request.auth.uid == resource.data.authorUid &&

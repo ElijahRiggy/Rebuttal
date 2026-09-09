@@ -499,6 +499,7 @@
   .user-menu-dropdown button:hover{background:var(--surface-sunken);}
   .user-menu-divider{height:1px;background:var(--hairline);margin:6px 4px;}
   .member-badge{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--amber);background:var(--amber-tint);border-radius:8px;padding:2px 7px;}
+  .members-only-tag{display:inline-block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--amber);background:var(--amber-tint);border:1px solid var(--amber);border-radius:10px;padding:3px 10px;margin-left:10px;}
   .member-badge-inline{display:inline-block;vertical-align:middle;margin-left:10px;font-size:12px;padding:4px 10px;border-radius:10px;border:1px solid var(--amber);}
 
   .accent-swatch-row{display:flex;gap:10px;align-items:center;}
@@ -1087,14 +1088,16 @@ async function submitTopic(){
   const btn = document.getElementById('create-topic-btn');
   if(btn){ btn.disabled = true; btn.textContent = state.editingTopicId ? 'Saving…' : 'Creating…'; }
   try{
+    const membersOnlyEl = document.getElementById('t-members-only');
+    const membersOnly = isMember() && membersOnlyEl ? membersOnlyEl.checked : false;
     if(state.editingTopicId){
-      await fb.updateDoc(fb.doc(db, 'topics', state.editingTopicId), { title, description: desc, category });
+      await fb.updateDoc(fb.doc(db, 'topics', state.editingTopicId), { title, description: desc, category, membersOnly });
       const id = state.editingTopicId;
       state.editingTopicId = null;
       await openTopic(id);
     } else {
       const ref = await fb.addDoc(fb.collection(db, 'topics'), {
-        title, description: desc, category,
+        title, description: desc, category, membersOnly,
         createdAt: fb.serverTimestamp(),
         createdBy: state.user.uid, createdByName: state.user.displayName, creatorIsMember: isMember(),
         proCount: 0, conCount: 0, votes: 0, voterChoices: {}, closed: false
@@ -1181,6 +1184,7 @@ async function addArg(side){
   if(!requireAuth()) return;
   if(state.submittingArg[side]) return;
   if(state.currentTopic && state.currentTopic.closed){ customAlert('This debate is closed to new arguments.'); return; }
+  if(state.currentTopic && state.currentTopic.membersOnly && !isMember()){ customAlert('This is a Members-only debate — only Members can post arguments here.'); return; }
   state.submittingArg[side] = true;
   const btn = document.getElementById(side + '-submit-btn');
   try{
@@ -1389,36 +1393,6 @@ function shareTopic(){
   }
 }
 
-/* ---------- seed a realistic fake debate for testing (safe to delete once done) ---------- */
-async function seedExampleDebate(){
-  if(!requireAuth()) return;
-  try{
-    const ref = await fb.addDoc(fb.collection(db, 'topics'), {
-      title: 'Remote work is better than office work',
-      description: 'Where should the 9-to-5 actually happen?',
-      category: 'Society',
-      createdAt: fb.serverTimestamp(),
-      createdBy: state.user.uid, createdByName: state.user.displayName,
-      proCount: 2, conCount: 2, votes: 14, voterChoices: {}
-    });
-    const fakeArgs = [
-      { side: 'pro', author: 'Jordan Blake', authorUid: 'fake-jordan-blake', text: 'No commute means more time for family, hobbies, or just sleep. That adds up to hours every single week.', votes: 7 },
-      { side: 'pro', author: 'Lena Ortiz', authorUid: 'fake-lena-ortiz', text: "People are demonstrably more productive without constant office interruptions — fewer 'quick questions' at your desk.", votes: 3 },
-      { side: 'con', author: 'Chris Nakamura', authorUid: 'fake-chris-nakamura', text: 'In-person collaboration sparks ideas that a Slack thread never will. Whiteboard sessions just work better face to face.', votes: 6 },
-      { side: 'con', author: 'Aisha Bello', authorUid: 'fake-aisha-bello', text: 'New hires learn company culture far faster sitting next to experienced teammates than through a screen.', votes: 2 }
-    ];
-    for(const a of fakeArgs){
-      await fb.addDoc(fb.collection(db, 'topics', ref.id, 'arguments'), {
-        side: a.side, text: a.text, votes: a.votes, voterChoices: {}, topicId: ref.id,
-        author: a.author, authorUid: a.authorUid, createdAt: fb.serverTimestamp()
-      });
-    }
-    await openTopic(ref.id);
-    showToast('Test debate created — click "Debate" under any argument to try the flow.');
-  }catch(e){
-    customAlert("Couldn't seed the example debate. Check you're logged in and Firestore rules are published.");
-  }
-}
 
 /* ---------- one-time admin utility: seed 2 default debates per category ----------
    Run this once from the browser console (F12) on the live site while logged in:
@@ -2191,7 +2165,7 @@ function renderList(app){
       <p>Post a debate, argue Pro or Con, and let the votes decide who's actually winning the argument.</p>
       <div class="hero-actions">
         <button class="btn primary" onclick="goNew()">Start a debate</button>
-        ${state.user ? `<button class="btn ghost" onclick="seedExampleDebate()">Seed a test debate</button>` : `<button class="btn ghost" onclick="openAuthModal('signup')">Create an account</button>`}
+        ${!state.user ? `<button class="btn ghost" onclick="openAuthModal('signup')">Create an account</button>` : ''}
       </div>
       <div class="stat-row">
         <div class="stat"><span class="num">${totalDebates}</span><span class="lbl">debates</span></div>
@@ -2475,6 +2449,13 @@ function renderNew(app){
       <select id="t-category" ${blockSubmit ? 'disabled' : ''}>${options}</select>
       <label for="t-desc">Context (optional)</label>
       <textarea id="t-desc" rows="3" maxlength="500" placeholder="A sentence or two framing the debate." ${blockSubmit ? 'disabled' : ''}>${esc(existing.description || '')}</textarea>
+      ${isMember() ? `
+      <label class="visibility-toggle" style="margin-top:4px;">
+        <input type="checkbox" id="t-members-only" ${existing.membersOnly ? 'checked' : ''} ${blockSubmit ? 'disabled' : ''}>
+        Members-only debate <span class="member-badge" style="margin-left:6px;">Member perk</span>
+      </label>
+      <p style="font-size:12px;color:var(--ink-mute);margin:4px 0 20px;">Only other Members will be able to post arguments. Anyone can still read it and vote.</p>
+      ` : ''}
       <div id="t-err" class="err" style="display:none;"></div>
       <div class="form-actions">
         <button class="btn primary" id="create-topic-btn" onclick="submitTopic()" ${blockSubmit ? 'disabled' : ''}>${isEdit ? 'Save changes' : 'Create debate'}</button>
@@ -2562,11 +2543,13 @@ function renderTopic(app){
   };
 
   const myTopicChoice = state.user && topic.voterChoices ? topic.voterChoices[state.user.uid] : null;
+  const canPost = !topic.closed && (!topic.membersOnly || isMember());
   app.innerHTML = renderHeader() + `
     <button class="back" onclick="goList()">&larr; all debates</button>
     <div class="topic-head-row">
       <div class="topic-head">
         <div class="category-badge">${esc(topic.category || 'Other')}</div>
+        ${topic.membersOnly ? `<span class="members-only-tag">★ Members-only debate</span>` : ''}
         <h1>${esc(topic.title)}${topic.creatorIsMember ? `<span class="member-badge member-badge-inline">★ Member</span>` : ''}</h1>
         ${topic.description ? `<p>${esc(topic.description)}</p>` : ''}
       </div>
@@ -2582,6 +2565,7 @@ function renderTopic(app){
       </div>
     </div>
     ${topic.closed ? `<div class="banner">This debate is closed — no new arguments can be added.${isTopicOwner ? ' You can reopen it with the button above.' : ''}</div>` : ''}
+    ${!topic.closed && topic.membersOnly && !isMember() ? `<div class="banner">This is a Members-only debate — only <a href="#" onclick="event.preventDefault();goMembership();">Members</a> can post arguments here. Anyone can still read and vote.</div>` : ''}
     <div class="tally">
       <div class="side pro"><div class="n">${pro.length}</div><div class="l">pro arguments</div></div>
       <div class="side con"><div class="n">${con.length}</div><div class="l">con arguments</div></div>
@@ -2597,7 +2581,7 @@ function renderTopic(app){
       <div>
         <div class="col-head pro"><span class="label">Pro</span></div>
         ${pro.length ? pro.map((a,i)=>cardHtml(a,i+1)).join('') : '<div class="col-empty">No arguments yet. Be first.</div>'}
-        ${!topic.closed ? `<div class="add-arg">
+        ${canPost ? `<div class="add-arg">
           <textarea id="pro-input" maxlength="1200" placeholder="Make the case for..."></textarea>
           <button class="btn pro-btn" id="pro-submit-btn" onclick="addArg('pro')">Add to Pro</button>
         </div>` : ''}
@@ -2605,7 +2589,7 @@ function renderTopic(app){
       <div>
         <div class="col-head con"><span class="label">Con</span></div>
         ${con.length ? con.map((a,i)=>cardHtml(a,i+1)).join('') : '<div class="col-empty">No arguments yet. Be first.</div>'}
-        ${!topic.closed ? `<div class="add-arg">
+        ${canPost ? `<div class="add-arg">
           <textarea id="con-input" maxlength="1200" placeholder="Make the case against..."></textarea>
           <button class="btn con-btn" id="con-submit-btn" onclick="addArg('con')">Add to Con</button>
         </div>` : ''}
@@ -2921,7 +2905,7 @@ function renderEditProfile(app){
 Object.assign(window, {
   goList, goNew, goInbox, openTopic, openChat, submitTopic, addArg, vote, voteTopic,
   shareTopic, challengeAuthor, startChallenge, sendChatMsg, setCategoryFilter, setSortMode, toggleMembersOnlyFilter,
-  openAuthModal, logOut, seedExampleDebate, seedDefaultDebates, openProfile, goEditProfile, submitProfile,
+  openAuthModal, logOut, seedDefaultDebates, openProfile, goEditProfile, submitProfile,
   handlePhotoFile, removePhoto, selectPolitical, selectAccentColor, toggleUserMenu,
   goEditTopic, deleteTopic, editArgument, deleteArgument, reportContent, toggleReplies, addReply,
   deleteMessage, blockUserProfile, unblockUserProfile, resendVerification, dismissVerifyBanner, filterRowsBySearch,
