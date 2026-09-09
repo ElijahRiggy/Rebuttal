@@ -1809,6 +1809,7 @@ function render(){
   else if(state.view === 'profile') renderProfile(app);
   else if(state.view === 'edit-profile') renderEditProfile(app);
   else if(state.view === 'notifications') renderNotifications(app);
+  else if(state.view === 'about') renderAbout(app);
   else if(state.view === 'terms') renderTerms(app);
   else if(state.view === 'privacy') renderPrivacy(app);
   if(viewChanged){
@@ -2028,17 +2029,28 @@ function filterRowsBySearch(q, skipStateUpdate){
   });
 }
 
+const SUPPORT_URL = 'https://ko-fi.com/riggy80083';
+const CONTACT_EMAIL = 'veltrixriggs@gmail.com';
+
 function renderFooter(){
   return `<div class="site-footer">
     <span class="foot-word">Rebuttal</span>
     <div class="foot-links">
+      <button class="foot-link" onclick="goAbout()">About</button>
       <button class="foot-link" onclick="goTerms()">Terms</button>
       <button class="foot-link" onclick="goPrivacy()">Privacy</button>
+      <a class="foot-link" href="${SUPPORT_URL}" target="_blank" rel="noopener">Support this site</a>
       <span class="foot-note">Every debate here is public. Argue in good faith.</span>
     </div>
   </div>`;
 }
 
+function goAbout(){
+  cleanupTopicSubs(); cleanupChatSubs();
+  state.view = 'about';
+  pushUrl('');
+  render();
+}
 function goTerms(){
   cleanupTopicSubs(); cleanupChatSubs();
   state.view = 'terms';
@@ -2050,6 +2062,17 @@ function goPrivacy(){
   state.view = 'privacy';
   pushUrl('');
   render();
+}
+
+function renderAbout(app){
+  renderLegalShell(app, 'About Rebuttal', `
+    <p>Rebuttal is a place to actually argue something out. Post a debate, pick Pro or Con, make your case, and let votes decide whose argument is landing — instead of another comment section where nobody's really responding to anybody.</p>
+    <p>It's a small, independently run site — built and maintained by one person, not a company. If you spot something broken or want to say hello, use the contact info below.</p>
+    <h2>Contact</h2>
+    <p>Questions, bug reports, or anything else — reach out at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
+    <h2>Support Rebuttal</h2>
+    <p>Rebuttal doesn't run ads (yet) and isn't trying to sell you anything. If you'd like to help keep it running, you can <a href="${SUPPORT_URL}" target="_blank" rel="noopener">support it on Ko-fi</a> — entirely optional, and never required to use any part of the site.</p>
+  `);
 }
 
 function renderLegalShell(app, title, bodyHtml){
@@ -2580,7 +2603,7 @@ Object.assign(window, {
   goEditTopic, deleteTopic, editArgument, deleteArgument, reportContent, toggleReplies, addReply,
   deleteMessage, blockUserProfile, unblockUserProfile, resendVerification, dismissVerifyBanner, filterRowsBySearch,
   toggleNotifications, toggleDarkMode, followUser, unfollowUser, goNotifications, openNotification,
-  markAllNotificationsRead, setArgSortMode, toggleCloseTopic, goTerms, goPrivacy, deleteMyAccount
+  markAllNotificationsRead, setArgSortMode, toggleCloseTopic, goTerms, goPrivacy, goAbout, deleteMyAccount
 });
 
 /* ---------- init ---------- */
