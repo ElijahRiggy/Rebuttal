@@ -444,6 +444,10 @@
   }
   .user-menu-dropdown button:hover{background:var(--surface-sunken);}
   .user-menu-divider{height:1px;background:var(--hairline);margin:6px 4px;}
+  .member-badge{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--amber);background:var(--amber-tint);border-radius:8px;padding:2px 7px;}
+  .dropdown-member-cta{display:block;text-align:center;font-family:'Public Sans',sans-serif;font-size:13.5px;font-weight:700;color:var(--amber);background:var(--amber-tint);border-radius:9px;padding:10px 12px;text-decoration:none;margin-bottom:4px;}
+  .dropdown-member-cta:hover{opacity:.85;}
+  .dropdown-member-note{font-size:12px;color:var(--amber);text-align:center;padding:8px 12px;font-weight:600;}
 
   /* Chip-select (political spectrum etc) */
   .chip-select{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;}
@@ -585,11 +589,22 @@ const state = {
   darkMode: false,
   appNotifications: [], appNotifHasLoadedOnce: false,
   argSortMode: 'votes',
-  lastArgPostTime: 0, lastTopicPostTime: 0,
   myFollowing: [],
   _lastRenderedView: null
 };
-const POST_COOLDOWN_MS = 20000;
+const TOPIC_COOLDOWN_MS = 5 * 60 * 60 * 1000; // 5 hours between debates for non-members
+
+function isMember(){
+  return !!(state.myProfile && state.myProfile.isMember);
+}
+function formatCooldown(ms){
+  const totalMin = Math.ceil(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if(h <= 0) return `${m}m`;
+  if(m <= 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function esc(s){ const d=document.createElement('div'); d.textContent=s ?? ''; return d.innerHTML; }
@@ -978,10 +993,13 @@ async function submitTopic(){
   const category = document.getElementById('t-category').value;
   const errEl = document.getElementById('t-err');
   if(!title){ errEl.textContent = 'Give the debate a topic first.'; errEl.style.display = 'block'; return; }
-  if(!state.editingTopicId){
-    const waitMs = POST_COOLDOWN_MS - (Date.now() - state.lastTopicPostTime);
+  if(!state.editingTopicId && !isMember()){
+    const lastPostAt = state.myProfile && state.myProfile.lastTopicPostAt
+      ? (state.myProfile.lastTopicPostAt.toMillis ? state.myProfile.lastTopicPostAt.toMillis() : state.myProfile.lastTopicPostAt)
+      : 0;
+    const waitMs = TOPIC_COOLDOWN_MS - (Date.now() - lastPostAt);
     if(waitMs > 0){
-      errEl.textContent = `You're posting a bit fast — wait ${Math.ceil(waitMs/1000)}s and try again.`;
+      errEl.innerHTML = `You can start one debate every 5 hours — try again in ${formatCooldown(waitMs)}, or <a href="#" onclick="event.preventDefault();goAbout();">become a Member</a> to skip the wait.`;
       errEl.style.display = 'block';
       return;
     }
@@ -1002,7 +1020,9 @@ async function submitTopic(){
         createdBy: state.user.uid, createdByName: state.user.displayName,
         proCount: 0, conCount: 0, votes: 0, voterChoices: {}, closed: false
       });
-      state.lastTopicPostTime = Date.now();
+      const nowTs = fb.serverTimestamp();
+      await fb.updateDoc(fb.doc(db, 'users', state.user.uid), { lastTopicPostAt: nowTs });
+      state.myProfile = { ...(state.myProfile || {}), lastTopicPostAt: Date.now() };
       notifyFollowersOfNewTopic(ref.id, title);
       await openTopic(ref.id);
     }
@@ -1082,11 +1102,6 @@ async function addArg(side){
   if(!requireAuth()) return;
   if(state.submittingArg[side]) return;
   if(state.currentTopic && state.currentTopic.closed){ customAlert('This debate is closed to new arguments.'); return; }
-  const waitMs = POST_COOLDOWN_MS - (Date.now() - state.lastArgPostTime);
-  if(waitMs > 0){
-    showToast(`Posting a bit fast — wait ${Math.ceil(waitMs/1000)}s`);
-    return;
-  }
   state.submittingArg[side] = true;
   const btn = document.getElementById(side + '-submit-btn');
   try{
@@ -1102,7 +1117,6 @@ async function addArg(side){
     await fb.updateDoc(fb.doc(db, 'topics', state.currentTopicId), {
       [side === 'pro' ? 'proCount' : 'conCount']: fb.increment(1)
     });
-    state.lastArgPostTime = Date.now();
     inputEl.value = '';
   }catch(e){
     customAlert("Couldn't post that argument. Try again.");
@@ -1901,6 +1915,7 @@ function renderHeader(){
   const notifCount = appUnreadCount();
   const myPhoto = state.myProfile && state.myProfile.photoURL;
   const supportBtn = `<a class="support-btn" href="${SUPPORT_URL}" target="_blank" rel="noopener">Support Rebuttal</a>`;
+  const memberBadge = isMember() ? `<span class="member-badge">Member</span>` : '';
   const authSection = state.user
     ? `<div class="auth-nav">
         ${supportBtn}
@@ -1910,9 +1925,14 @@ function renderHeader(){
           <button class="user-menu-trigger" onclick="toggleUserMenu(event)">
             ${avatarHtml(state.user.displayName, myPhoto, 'avatar-xs')}
             <span class="user-menu-name">${esc(state.user.displayName || 'you')}</span>
+            ${memberBadge}
             <svg class="chev" viewBox="0 0 12 8" width="10" height="7"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           ${state.userMenuOpen ? `<div class="user-menu-dropdown">
+            ${isMember()
+              ? `<div class="dropdown-member-note">You're a Member — unlimited debates, no wait.</div>`
+              : `<a class="dropdown-member-cta" href="${MEMBERSHIP_URL}" target="_blank" rel="noopener">&#9733; Become a Member</a>`}
+            <div class="user-menu-divider"></div>
             <button onclick="toggleUserMenu();openProfile('${state.user.uid}')">View profile</button>
             <button onclick="toggleUserMenu();goEditProfile()">Edit profile</button>
             <button onclick="toggleNotifications()">${state.notificationsEnabled ? 'Browser notifications: on' : 'Enable browser notifications'}</button>
@@ -2042,6 +2062,7 @@ function filterRowsBySearch(q, skipStateUpdate){
 }
 
 const SUPPORT_URL = 'https://ko-fi.com/riggy80083';
+const MEMBERSHIP_URL = 'https://buy.stripe.com/YOUR_PAYMENT_LINK'; // replace with your real Stripe Payment Link
 const CONTACT_EMAIL = 'veltrixriggs@gmail.com';
 
 function renderFooter(){
@@ -2082,7 +2103,9 @@ function renderAbout(app){
     <h2>Contact</h2>
     <p>Questions, bug reports, or anything else — reach out at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
     <h2>Support Rebuttal</h2>
-    <p>Rebuttal doesn't run ads (yet) and isn't trying to sell you anything. If you'd like to help keep it running, you can <a href="${SUPPORT_URL}" target="_blank" rel="noopener">support it on Ko-fi</a> — entirely optional, and never required to use any part of the site.</p>
+    <p>Rebuttal doesn't run ads (yet) and isn't trying to sell you anything. If you'd like to help keep it running, you can <a href="${SUPPORT_URL}" target="_blank" rel="noopener">support it on Ko-fi</a> — entirely optional, one-time or recurring on your terms, and never required to use any part of the site.</p>
+    <h2>Membership</h2>
+    <p>Free accounts can start one new debate every 5 hours — arguing, voting, and messaging are unlimited either way. <a href="${MEMBERSHIP_URL}" target="_blank" rel="noopener">Members</a> can start as many debates as they want, whenever they want, plus get a badge next to their name. This is separate from Ko-fi support above — one's a subscription with a feature attached, the other's just a tip jar.</p>
   `);
 }
 
@@ -2168,19 +2191,34 @@ function renderNew(app){
   const isEdit = !!state.editingTopicId;
   const existing = isEdit && state.currentTopic && state.currentTopic.id === state.editingTopicId ? state.currentTopic : {};
   const options = CATEGORIES.map(c => `<option value="${esc(c)}" ${existing.category === c ? 'selected' : ''}>${esc(c)}</option>`).join('');
+
+  let cooldownBanner = '';
+  let blockSubmit = false;
+  if(!isEdit && !isMember()){
+    const lastPostAt = state.myProfile && state.myProfile.lastTopicPostAt
+      ? (state.myProfile.lastTopicPostAt.toMillis ? state.myProfile.lastTopicPostAt.toMillis() : state.myProfile.lastTopicPostAt)
+      : 0;
+    const waitMs = TOPIC_COOLDOWN_MS - (Date.now() - lastPostAt);
+    if(waitMs > 0){
+      blockSubmit = true;
+      cooldownBanner = `<div class="banner">You can start one debate every 5 hours on the free plan — this one opens up again in <strong>${formatCooldown(waitMs)}</strong>. <a href="${MEMBERSHIP_URL}" target="_blank" rel="noopener">Become a Member</a> for unlimited debates, any time.</div>`;
+    }
+  }
+
   app.innerHTML = renderHeader() + `
     <button class="back" onclick="${isEdit ? `openTopic('${state.editingTopicId}')` : 'goList()'}">&larr; ${isEdit ? 'back to debate' : 'all debates'}</button>
+    ${cooldownBanner}
     <div class="panel">
       <h2>${isEdit ? 'Edit debate' : 'Start a debate'}</h2>
       <label for="t-title">Topic</label>
-      <input type="text" id="t-title" placeholder="e.g. Remote work is better than office work" maxlength="150" value="${esc(existing.title || '')}">
+      <input type="text" id="t-title" placeholder="e.g. Remote work is better than office work" maxlength="150" value="${esc(existing.title || '')}" ${blockSubmit ? 'disabled' : ''}>
       <label for="t-category">Category</label>
-      <select id="t-category">${options}</select>
+      <select id="t-category" ${blockSubmit ? 'disabled' : ''}>${options}</select>
       <label for="t-desc">Context (optional)</label>
-      <textarea id="t-desc" rows="3" maxlength="500" placeholder="A sentence or two framing the debate.">${esc(existing.description || '')}</textarea>
+      <textarea id="t-desc" rows="3" maxlength="500" placeholder="A sentence or two framing the debate." ${blockSubmit ? 'disabled' : ''}>${esc(existing.description || '')}</textarea>
       <div id="t-err" class="err" style="display:none;"></div>
       <div class="form-actions">
-        <button class="btn primary" id="create-topic-btn" onclick="submitTopic()">${isEdit ? 'Save changes' : 'Create debate'}</button>
+        <button class="btn primary" id="create-topic-btn" onclick="submitTopic()" ${blockSubmit ? 'disabled' : ''}>${isEdit ? 'Save changes' : 'Create debate'}</button>
         <button class="btn ghost" onclick="${isEdit ? `openTopic('${state.editingTopicId}')` : 'goList()'}">Cancel</button>
       </div>
     </div>

@@ -54,7 +54,12 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null &&
         request.resource.data.title.size() <= 150 &&
-        (!('description' in request.resource.data) || request.resource.data.description.size() <= 500);
+        (!('description' in request.resource.data) || request.resource.data.description.size() <= 500) &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isMember == true ||
+          !('lastTopicPostAt' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) ||
+          request.time > get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastTopicPostAt + duration.value(5, 'h')
+        );
       allow update: if request.auth != null && (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes','voterChoices','proCount','conCount']) ||
         (request.auth.uid == resource.data.createdBy &&
@@ -170,3 +175,24 @@ Until you do this, the live site shows a plain "connect Firebase" setup screen i
 5. Create an ad unit in AdSense (**Ads → By ad unit → Display ads**), which gives you an ad slot ID (a number like `1234567890`).
 6. Near the bottom of `index.html`, uncomment the `<div class="ad-slot-wrap">...</div>` block, and replace both `ca-pub-XXXXXXXXXXXXXXXX` and `0000000000` with your real publisher ID and ad slot ID.
 7. Push the change. Ads can take a little while to actually start appearing even after everything's correctly configured — that's normal on Google's end, not a sign something's broken.
+
+### Debate cooldown and Stripe Membership
+
+Free accounts can start **one new debate every 5 hours**. Arguing, voting, replying, and messaging are all unlimited regardless — the cooldown only applies to starting brand-new debates. **Members** (paid, via Stripe) skip this entirely.
+
+**How the cooldown is enforced:** every time you post a debate, the timestamp is saved to your own user profile in Firestore (not just kept in the browser), so refreshing the page doesn't reset it. It's also checked in the Firestore rules below, so it's not purely a client-side suggestion. Being fully honest about the limits of that: since your own account already has permission to edit your own profile (needed for normal profile editing), a technically determined person could still directly rewrite that timestamp field via Firestore's API and bypass the wait — the same category of limitation as the block feature and the old posting cooldown. It stops casual bypassing (like just hitting refresh), not a determined attacker; a fully tamper-proof version would need a Cloud Function, which brings back the same billing tradeoff mentioned elsewhere in this doc.
+
+**Setting up Stripe Membership:**
+
+1. Go to **stripe.com** and create an account (your own identity/payment details — this part has to be you, same as AdSense).
+2. In the Stripe Dashboard, create a **Product** (e.g. "Rebuttal Membership") with a **recurring Price** (e.g. $3/month — whatever you want to charge).
+3. Create a **Payment Link** for that price (Stripe Dashboard → Payment Links → New). This gives you a URL like `https://buy.stripe.com/xxxxxxxx` that works immediately with zero code — no backend required just to *accept* the payment.
+4. In `index.html`, find `const MEMBERSHIP_URL = 'https://buy.stripe.com/YOUR_PAYMENT_LINK';` near the top of the `<script type="module">` block, and replace it with your real Payment Link.
+5. Push the change — the "Become a Member" prompt (in the account dropdown menu, and shown when someone hits the cooldown) now points at your real checkout page.
+
+**That gets payments working. Turning a payment into an unlocked account still needs one more step**, and you have two options:
+
+- **Manual (works today, zero extra building):** Stripe emails you when someone subscribes. Open Firestore's **Data** tab, find that person's document under `users`, and add a field `isMember` set to `true` (boolean). They'll see the Member badge and unlimited debates on their next page load. To revoke it if someone cancels, Stripe also emails you about that — just flip the field back to `false`.
+- **Automated (bigger lift, but genuinely free):** since you're already hosting on Vercel, its free tier includes serverless functions — a small API endpoint that receives Stripe's webhook events (`checkout.session.completed` for new members, `customer.subscription.deleted` for cancellations) and writes `isMember` to Firestore automatically using the Firebase Admin SDK. Unlike Ko-fi, Stripe's webhooks reliably report *both* the start and the end of a subscription, so this can be fully automatic in both directions. This is a real, separate piece of infrastructure (a new API route, Stripe webhook secret, and a Firebase service account key stored as a Vercel environment variable) — ask if you want this built next.
+
+Update your Firestore rules to the version below regardless — it adds the server-side half of the cooldown check and needs to be live before members actually skip the wait.
