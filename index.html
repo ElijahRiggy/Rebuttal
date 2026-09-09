@@ -39,6 +39,35 @@
     --shadow-md:0 6px 20px rgba(24,29,39,.07);
     --shadow-lg:0 16px 40px rgba(24,29,39,.10);
   }
+  html.dark{
+    --ink:#ECEAE6;
+    --ink-soft:#B7B2A9;
+    --ink-mute:#837E74;
+    --paper:#17140F;
+    --surface:#211D17;
+    --surface-sunken:#2A251D;
+    --hairline:#3A342A;
+    --hairline-strong:#4C4536;
+    --wine:#E8677A;
+    --wine-hover:#F08393;
+    --wine-tint:#3A1A22;
+    --wine-tint-2:#4C222D;
+    --logo-red:#FF5D74;
+    --amber:#E0B15C;
+    --amber-tint:#332912;
+    --slate:#8FB3D6;
+    --slate-tint:#1D2733;
+    --forest:#5BCB9F;
+    --forest-tint:#132C22;
+    --forest-tint-2:#1B3D2E;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.25);
+    --shadow-md:0 6px 20px rgba(0,0,0,.35);
+    --shadow-lg:0 16px 40px rgba(0,0,0,.5);
+  }
+  html.dark body{ background:var(--paper); }
+  html.dark input[type=text], html.dark textarea, html.dark select#t-category{ background:var(--surface); color:var(--ink); }
+  html.dark .msg.mine{ color:#17140F; }
+  html.dark .logo-mark svg path{ fill:var(--logo-red); }
   *{box-sizing:border-box;}
   html{font-size:17px;}
   body{
@@ -207,6 +236,10 @@
   }
   .arg-card.pro{border-top-color:var(--forest);}
   .arg-card.con{border-top-color:var(--wine);}
+  .arg-card.arg-top{box-shadow:var(--shadow-md);border-width:1.5px;}
+  .arg-card.pro.arg-top{border-color:var(--forest);}
+  .arg-card.con.arg-top{border-color:var(--wine);}
+  .top-badge{display:inline-block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--amber);background:var(--amber-tint);border-radius:10px;padding:3px 9px;margin:-4px 0 10px;}
   .arg-rank{font-size:11.5px;color:var(--ink-mute);font-weight:700;margin:0 0 8px;letter-spacing:.02em;}
   .arg-text{font-size:15.5px;line-height:1.6;margin:0 0 12px;color:var(--ink);}
   .arg-meta{font-size:12.5px;color:var(--ink-mute);margin:0 0 14px;font-weight:600;}
@@ -474,8 +507,14 @@ const state = {
   viewingProfileArguments: [],
   submittingTopic: false, submittingArg: { pro: false, con: false }, submittingMsg: false, submittingAuth: false,
   topicUnsubs: [], chatUnsubs: [], globalUnsubs: [],
-  toastMsg: null, toastTimer: null
+  toastMsg: null, toastTimer: null,
+  darkMode: false,
+  appNotifications: [], appNotifHasLoadedOnce: false,
+  argSortMode: 'votes',
+  lastArgPostTime: 0, lastTopicPostTime: 0,
+  myFollowing: []
 };
+const POST_COOLDOWN_MS = 20000;
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function esc(s){ const d=document.createElement('div'); d.textContent=s ?? ''; return d.innerHTML; }
@@ -634,6 +673,8 @@ function openAuthModal(mode){
         state.user = { uid: cred.user.uid, displayName: name, email, emailVerified: false };
         state.myProfile = {};
         loadMyBlocks();
+        loadMyFollowing();
+        subscribeAppNotifications();
         subscribeInbox();
         render();
       } else {
@@ -713,7 +754,80 @@ async function toggleNotifications(){
   }
   render();
 }
+
+function applyDarkModeClass(){
+  try{
+    if(state.darkMode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+  }catch(e){}
+}
+function toggleDarkMode(){
+  state.darkMode = !state.darkMode;
+  applyDarkModeClass();
+  try{ localStorage.setItem('rebuttal-dark', state.darkMode ? '1' : '0'); }catch(e){}
+  render();
+}
+function initDarkModeFromStorage(){
+  try{
+    const saved = localStorage.getItem('rebuttal-dark');
+    if(saved === '1') state.darkMode = true;
+    else if(saved === null && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) state.darkMode = true;
+  }catch(e){}
+  applyDarkModeClass();
+}
 function cleanupGlobalInboxSub(){ /* handled by full teardown on logout if needed */ }
+
+/* ---------- in-app notifications (replies, follows) ---------- */
+async function createNotification(recipientUid, data){
+  if(!recipientUid || recipientUid === state.user.uid) return; // never notify yourself
+  try{
+    await fb.addDoc(fb.collection(db, 'notifications'), {
+      recipientUid, read: false, createdAt: fb.serverTimestamp(), ...data
+    });
+  }catch(e){ /* non-critical, fail silently */ }
+}
+function subscribeAppNotifications(){
+  if(!state.user){ state.appNotifications = []; return; }
+  const q = fb.query(fb.collection(db, 'notifications'), fb.where('recipientUid', '==', state.user.uid), fb.limit(100));
+  const unsub = fb.onSnapshot(q, snap => {
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    list.sort((a, b) => {
+      const at = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : a.createdAt) : 0;
+      const bt = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : b.createdAt) : 0;
+      return bt - at;
+    });
+    state.appNotifications = list;
+    render();
+  }, err => console.error('notifications sub error', err));
+  state.globalUnsubs.push(unsub);
+}
+function appUnreadCount(){
+  return (state.appNotifications || []).filter(n => !n.read).length;
+}
+async function openNotification(id){
+  const n = (state.appNotifications || []).find(x => x.id === id);
+  if(!n) return;
+  if(!n.read){
+    try{ await fb.updateDoc(fb.doc(db, 'notifications', n.id), { read: true }); }catch(e){}
+  }
+  if(n.topicId) openTopic(n.topicId);
+}
+async function markAllNotificationsRead(){
+  const unread = (state.appNotifications || []).filter(n => !n.read);
+  for(const n of unread){
+    try{ await fb.updateDoc(fb.doc(db, 'notifications', n.id), { read: true }); }catch(e){}
+  }
+}
+function goNotifications(){
+  if(!requireAuth()) return;
+  cleanupTopicSubs();
+  cleanupChatSubs();
+  state.view = 'notifications';
+  state.appNotifHasLoadedOnce = false;
+  pushUrl('');
+  render();
+}
+
 function cleanupTopicSubs(){
   state.topicUnsubs.forEach(u => u());
   state.topicUnsubs = [];
@@ -741,6 +855,14 @@ async function submitTopic(){
   const category = document.getElementById('t-category').value;
   const errEl = document.getElementById('t-err');
   if(!title){ errEl.textContent = 'Give the debate a topic first.'; errEl.style.display = 'block'; return; }
+  if(!state.editingTopicId){
+    const waitMs = POST_COOLDOWN_MS - (Date.now() - state.lastTopicPostTime);
+    if(waitMs > 0){
+      errEl.textContent = `You're posting a bit fast — wait ${Math.ceil(waitMs/1000)}s and try again.`;
+      errEl.style.display = 'block';
+      return;
+    }
+  }
   state.submittingTopic = true;
   const btn = document.getElementById('create-topic-btn');
   if(btn){ btn.disabled = true; btn.textContent = state.editingTopicId ? 'Saving…' : 'Creating…'; }
@@ -755,8 +877,10 @@ async function submitTopic(){
         title, description: desc, category,
         createdAt: fb.serverTimestamp(),
         createdBy: state.user.uid, createdByName: state.user.displayName,
-        proCount: 0, conCount: 0, votes: 0, voterChoices: {}
+        proCount: 0, conCount: 0, votes: 0, voterChoices: {}, closed: false
       });
+      state.lastTopicPostTime = Date.now();
+      notifyFollowersOfNewTopic(ref.id, title);
       await openTopic(ref.id);
     }
   }catch(e){
@@ -789,6 +913,24 @@ async function deleteTopic(id){
   }
 }
 
+async function toggleCloseTopic(id){
+  const topic = state.currentTopic;
+  if(!topic || topic.createdBy !== state.user.uid) return;
+  const closing = !topic.closed;
+  if(closing && !confirm('Close this debate? No new arguments can be added until you reopen it.')) return;
+  try{
+    await fb.updateDoc(fb.doc(db, 'topics', id), { closed: closing });
+    showToast(closing ? 'Debate closed' : 'Debate reopened');
+  }catch(e){
+    alert("Couldn't update that. Try again.");
+  }
+}
+
+function setArgSortMode(m){
+  state.argSortMode = m;
+  render();
+}
+
 async function openTopic(id){
   cleanupTopicSubs();
   cleanupChatSubs();
@@ -816,6 +958,12 @@ async function openTopic(id){
 async function addArg(side){
   if(!requireAuth()) return;
   if(state.submittingArg[side]) return;
+  if(state.currentTopic && state.currentTopic.closed){ alert('This debate is closed to new arguments.'); return; }
+  const waitMs = POST_COOLDOWN_MS - (Date.now() - state.lastArgPostTime);
+  if(waitMs > 0){
+    showToast(`Posting a bit fast — wait ${Math.ceil(waitMs/1000)}s`);
+    return;
+  }
   state.submittingArg[side] = true;
   const btn = document.getElementById(side + '-submit-btn');
   try{
@@ -831,6 +979,7 @@ async function addArg(side){
     await fb.updateDoc(fb.doc(db, 'topics', state.currentTopicId), {
       [side === 'pro' ? 'proCount' : 'conCount']: fb.increment(1)
     });
+    state.lastArgPostTime = Date.now();
     inputEl.value = '';
   }catch(e){
     alert("Couldn't post that argument. Try again.");
@@ -998,6 +1147,14 @@ async function addReply(argId){
       text, author: state.user.displayName, authorUid: state.user.uid, createdAt: fb.serverTimestamp()
     });
     await fb.updateDoc(fb.doc(db, 'topics', state.currentTopicId, 'arguments', argId), { replyCount: fb.increment(1) });
+    const arg = (state.currentArgs || []).find(a => a.id === argId);
+    if(arg && arg.authorUid){
+      createNotification(arg.authorUid, {
+        type: 'reply', topicId: state.currentTopicId, topicTitle: state.currentTopic ? state.currentTopic.title : '',
+        fromUid: state.user.uid, fromName: state.user.displayName,
+        text: `${state.user.displayName} replied to your argument on "${state.currentTopic ? state.currentTopic.title : 'a debate'}"`
+      });
+    }
     input.value = '';
     await loadReplies(argId);
   }catch(e){
@@ -1091,6 +1248,54 @@ async function unblockUserProfile(uid){
   }catch(e){
     alert("Couldn't unblock that person. Try again.");
   }
+}
+
+/* ---------- following ---------- */
+async function loadMyFollowing(){
+  if(!state.user){ state.myFollowing = []; return; }
+  try{
+    const snap = await fb.getDocs(fb.query(fb.collection(db, 'follows'), fb.where('followerUid', '==', state.user.uid)));
+    state.myFollowing = snap.docs.map(d => d.data().followedUid);
+  }catch(e){
+    state.myFollowing = [];
+  }
+}
+async function followUser(uid, name){
+  if(!requireAuth()) return;
+  if(uid === state.user.uid) return;
+  try{
+    await fb.setDoc(fb.doc(db, 'follows', state.user.uid + '_' + uid), {
+      followerUid: state.user.uid, followedUid: uid, createdAt: fb.serverTimestamp()
+    });
+    if(!state.myFollowing.includes(uid)) state.myFollowing.push(uid);
+    showToast(`Following ${name}`);
+    render();
+  }catch(e){
+    alert("Couldn't follow that person. Try again.");
+  }
+}
+async function unfollowUser(uid){
+  try{
+    await fb.deleteDoc(fb.doc(db, 'follows', state.user.uid + '_' + uid));
+    state.myFollowing = state.myFollowing.filter(u => u !== uid);
+    showToast('Unfollowed');
+    render();
+  }catch(e){
+    alert("Couldn't unfollow that person. Try again.");
+  }
+}
+async function notifyFollowersOfNewTopic(topicId, topicTitle){
+  try{
+    const snap = await fb.getDocs(fb.query(fb.collection(db, 'follows'), fb.where('followedUid', '==', state.user.uid)));
+    for(const d of snap.docs){
+      const followerUid = d.data().followerUid;
+      await createNotification(followerUid, {
+        type: 'new_topic', topicId, topicTitle,
+        fromUid: state.user.uid, fromName: state.user.displayName,
+        text: `${state.user.displayName} started a new debate: "${topicTitle}"`
+      });
+    }
+  }catch(e){ /* non-critical */ }
 }
 
 async function ensureThread(otherUid, otherName, topicContext){
@@ -1446,7 +1651,7 @@ async function submitProfile(){
 function render(){
   const app = document.getElementById('app');
   if(NEEDS_SETUP) return renderSetupScreen(app);
-  if(!state.user && (state.view === 'chat' || state.view === 'inbox' || state.view === 'new' || state.view === 'edit-profile')){
+  if(!state.user && (state.view === 'chat' || state.view === 'inbox' || state.view === 'new' || state.view === 'edit-profile' || state.view === 'notifications')){
     state.view = 'list';
   }
   if(state.view === 'list') renderList(app);
@@ -1456,7 +1661,30 @@ function render(){
   else if(state.view === 'chat') renderChat(app);
   else if(state.view === 'profile') renderProfile(app);
   else if(state.view === 'edit-profile') renderEditProfile(app);
+  else if(state.view === 'notifications') renderNotifications(app);
   renderToast();
+}
+
+function renderNotifications(app){
+  const list = state.appNotifications || [];
+  const rows = list.length
+    ? list.map(n => `<div class="thread-row ${!n.read?'unread-row':''}" style="border-left-color:${!n.read?'var(--logo-red)':'transparent'};" onclick="openNotification('${n.id}')">
+        <div class="thread-info">
+          <p class="thread-preview ${!n.read?'unread':''}" style="white-space:normal;">${esc(n.text || 'You have a notification')}</p>
+          <span class="thread-time">${timeAgo(n.createdAt)}</span>
+        </div>
+        ${!n.read ? '<div class="unread-dot"></div>' : ''}
+      </div>`).join('')
+    : `<div class="empty"><h3>No notifications yet</h3><p>Replies to your arguments and new debates from people you follow will show up here.</p></div>`;
+  app.innerHTML = renderHeader() + `
+    <button class="back" onclick="goList()">&larr; all debates</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 20px;">
+      <h2 style="font-family:'Manrope',sans-serif;font-weight:800;font-size:24px;margin:0;letter-spacing:-0.01em;">Notifications</h2>
+      ${appUnreadCount() ? `<button class="btn ghost" style="font-size:12.5px;padding:6px 14px;" onclick="markAllNotificationsRead()">Mark all read</button>` : ''}
+    </div>
+    ${rows}
+    ${renderFooter()}
+  `;
 }
 
 function renderToast(){
@@ -1497,9 +1725,11 @@ function renderSetupScreen(app){
 
 function renderHeader(){
   const count = unreadCount();
+  const notifCount = appUnreadCount();
   const myPhoto = state.myProfile && state.myProfile.photoURL;
   const authSection = state.user
     ? `<div class="auth-nav">
+        <button class="messages-nav ${state.view==='notifications' ? 'active' : ''}" onclick="goNotifications()" title="Notifications">&#128276;${notifCount ? ` <span class="badge-dot">${notifCount}</span>` : ''}</button>
         <button class="messages-nav ${state.view==='inbox'||state.view==='chat' ? 'active' : ''}" onclick="goInbox()">messages${count ? ` <span class="badge-dot">${count}</span>` : ''}</button>
         <div class="user-menu">
           <button class="user-menu-trigger" onclick="toggleUserMenu(event)">
@@ -1510,13 +1740,15 @@ function renderHeader(){
           ${state.userMenuOpen ? `<div class="user-menu-dropdown">
             <button onclick="toggleUserMenu();openProfile('${state.user.uid}')">View profile</button>
             <button onclick="toggleUserMenu();goEditProfile()">Edit profile</button>
-            <button onclick="toggleNotifications()">${state.notificationsEnabled ? 'Notifications: on' : 'Enable notifications'}</button>
+            <button onclick="toggleNotifications()">${state.notificationsEnabled ? 'Browser notifications: on' : 'Enable browser notifications'}</button>
+            <button onclick="toggleDarkMode()">${state.darkMode ? 'Switch to light' : 'Switch to dark'}</button>
             <div class="user-menu-divider"></div>
             <button onclick="toggleUserMenu();logOut()">Log out</button>
           </div>` : ''}
         </div>
       </div>`
     : `<div class="auth-nav">
+        <button class="messages-nav" onclick="toggleDarkMode()" title="Toggle theme">${state.darkMode ? 'Light' : 'Dark'}</button>
         <button class="auth-btn" onclick="openAuthModal('login')">Log in</button>
         <button class="auth-btn filled" onclick="openAuthModal('signup')">Sign up</button>
       </div>`;
@@ -1670,10 +1902,19 @@ function renderTopic(app){
     return;
   }
   const topic = state.currentTopic;
-  const args = state.currentArgs;
-  const pro = args.filter(a => a.side === 'pro');
-  const con = args.filter(a => a.side === 'con');
+  const sortedArgs = [...state.currentArgs].sort((a, b) => {
+    if(state.argSortMode === 'newest'){
+      const at = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : a.createdAt) : 0;
+      const bt = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : b.createdAt) : 0;
+      return bt - at;
+    }
+    return (b.votes||0) - (a.votes||0);
+  });
+  const pro = sortedArgs.filter(a => a.side === 'pro');
+  const con = sortedArgs.filter(a => a.side === 'con');
   const isTopicOwner = state.user && topic.createdBy === state.user.uid;
+  const topProVotes = pro.length ? Math.max(...pro.map(a => a.votes||0)) : 0;
+  const topConVotes = con.length ? Math.max(...con.map(a => a.votes||0)) : 0;
 
   // preserve any in-progress typing (pro/con inputs, open reply boxes) across background re-renders
   const preserveIds = ['pro-input', 'con-input', ...state.openReplyThreads.map(id => 'reply-input-' + id)];
@@ -1703,9 +1944,12 @@ function renderTopic(app){
   const cardHtml = (a, rank) => {
     const myChoice = state.user && a.voterChoices ? a.voterChoices[state.user.uid] : null;
     const isOwner = state.user && a.authorUid === state.user.uid;
-    const canChallenge = a.authorUid && (!state.user || a.authorUid !== state.user.uid);
+    const canChallenge = a.authorUid && (!state.user || a.authorUid !== state.user.uid) && !topic.closed;
     const replyCount = a.replyCount || 0;
-    return `<div class="arg-card ${a.side}">
+    const topVotes = a.side === 'pro' ? topProVotes : topConVotes;
+    const isTop = topVotes > 0 && (a.votes||0) === topVotes;
+    return `<div class="arg-card ${a.side} ${isTop ? 'arg-top' : ''}">
+      ${isTop ? `<p class="top-badge">Most convincing</p>` : ''}
       <p class="arg-rank">${rank}</p>
       <p class="arg-text">${esc(a.text)}${a.editedAt ? ' <span class="edited-tag">(edited)</span>' : ''}</p>
       <p class="arg-meta">${a.author && a.authorUid ? `<span class="author-link" onclick="event.stopPropagation();openProfile('${a.authorUid}')">${esc(a.author)}</span>` : (a.author ? esc(a.author) : 'anonymous')} — ${timeAgo(a.createdAt)}</p>
@@ -1743,33 +1987,38 @@ function renderTopic(app){
           <button class="vote-arrow down ${myTopicChoice==='down'?'active':''}" onclick="voteTopic('${topic.id}','down')">&#9660;</button>
         </div>
         <button class="share-btn" onclick="shareTopic()">Share</button>
-        ${isTopicOwner ? `<button class="share-btn" onclick="goEditTopic()">Edit</button><button class="share-btn share-btn-danger" onclick="deleteTopic('${topic.id}')">Delete</button>`
+        ${isTopicOwner ? `<button class="share-btn" onclick="goEditTopic()">Edit</button><button class="share-btn" onclick="toggleCloseTopic('${topic.id}')">${topic.closed ? 'Reopen' : 'Close'}</button><button class="share-btn share-btn-danger" onclick="deleteTopic('${topic.id}')">Delete</button>`
                        : (state.user ? `<button class="share-btn" onclick="reportContent('debate','${topic.id}','${topic.id}')">Report</button>` : '')}
       </div>
     </div>
+    ${topic.closed ? `<div class="banner">This debate is closed — no new arguments can be added.${isTopicOwner ? ' You can reopen it with the button above.' : ''}</div>` : ''}
     <div class="tally">
       <div class="side pro"><div class="n">${pro.length}</div><div class="l">pro arguments</div></div>
       <div class="side con"><div class="n">${con.length}</div><div class="l">con arguments</div></div>
     </div>
-    <div class="challenge-row">
-      <button class="challenge-btn" onclick="startChallenge()">Message someone about this</button>
+    <div class="challenge-row" style="justify-content:space-between;">
+      <button class="challenge-btn" onclick="startChallenge()" ${topic.closed ? 'style="visibility:hidden;"' : ''}>Message someone about this</button>
+      <div class="sort-toggle">
+        <button class="sort-btn ${state.argSortMode==='votes'?'active':''}" onclick="setArgSortMode('votes')">Top voted</button>
+        <button class="sort-btn ${state.argSortMode==='newest'?'active':''}" onclick="setArgSortMode('newest')">Newest</button>
+      </div>
     </div>
     <div class="columns">
       <div>
         <div class="col-head pro"><span class="label">Pro</span></div>
         ${pro.length ? pro.map((a,i)=>cardHtml(a,i+1)).join('') : '<div class="col-empty">No arguments yet. Be first.</div>'}
-        <div class="add-arg">
+        ${!topic.closed ? `<div class="add-arg">
           <textarea id="pro-input" placeholder="Make the case for..."></textarea>
           <button class="btn pro-btn" id="pro-submit-btn" onclick="addArg('pro')">Add to Pro</button>
-        </div>
+        </div>` : ''}
       </div>
       <div>
         <div class="col-head con"><span class="label">Con</span></div>
         ${con.length ? con.map((a,i)=>cardHtml(a,i+1)).join('') : '<div class="col-empty">No arguments yet. Be first.</div>'}
-        <div class="add-arg">
+        ${!topic.closed ? `<div class="add-arg">
           <textarea id="con-input" placeholder="Make the case against..."></textarea>
           <button class="btn con-btn" id="con-submit-btn" onclick="addArg('con')">Add to Con</button>
-        </div>
+        </div>` : ''}
       </div>
     </div>
     ${renderFooter()}
@@ -1980,6 +2229,10 @@ function renderProfile(app){
         ${fields.length ? `<div class="profile-fields">${fields.map(f => `<div class="profile-field"><span class="pf-label">${esc(f.label)}</span><span class="pf-value">${esc(f.value)}</span></div>`).join('')}</div>` : ''}
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           ${isMe ? `<button class="btn primary" onclick="goEditProfile()">Edit your profile</button>` : ''}
+          ${!isMe && state.user ? (state.myFollowing.includes(uid)
+            ? `<button class="btn ghost" onclick="unfollowUser('${uid}')">Following &check;</button>`
+            : `<button class="btn primary" onclick="followUser('${uid}', '${esc(name).replace(/'/g,"&#39;")}')">Follow</button>`)
+            : ''}
           ${!isMe && state.user ? (isBlocked
             ? `<button class="btn ghost" onclick="unblockUserProfile('${uid}')">Unblock</button>`
             : `<button class="btn ghost" onclick="blockUserProfile('${uid}', '${esc(name).replace(/'/g,"&#39;")}')">Block</button>`)
@@ -2059,7 +2312,8 @@ Object.assign(window, {
   handlePhotoFile, removePhoto, selectPolitical, toggleUserMenu,
   goEditTopic, deleteTopic, editArgument, deleteArgument, reportContent, toggleReplies, addReply,
   deleteMessage, blockUserProfile, unblockUserProfile, resendVerification, dismissVerifyBanner, filterRowsBySearch,
-  toggleNotifications
+  toggleNotifications, toggleDarkMode, followUser, unfollowUser, goNotifications, openNotification,
+  markAllNotificationsRead, setArgSortMode, toggleCloseTopic
 });
 
 /* ---------- init ---------- */
@@ -2067,6 +2321,7 @@ window.addEventListener('popstate', () => {
   const id = new URLSearchParams(location.search).get('topic');
   if(id) openTopic(id); else goList();
 });
+initDarkModeFromStorage();
 
 if(NEEDS_SETUP){
   render();
@@ -2082,8 +2337,12 @@ if(NEEDS_SETUP){
         render();
       }).catch(() => {});
       loadMyBlocks().then(render);
+      loadMyFollowing().then(render);
+      subscribeAppNotifications();
     } else {
       state.myBlocks = [];
+      state.appNotifications = [];
+      state.myFollowing = [];
     }
     subscribeInbox();
     render();

@@ -56,7 +56,7 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes','voterChoices','proCount','conCount']) ||
         (request.auth.uid == resource.data.createdBy &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','description','category']))
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','description','category','closed']))
       );
       allow delete: if request.auth != null && request.auth.uid == resource.data.createdBy;
 
@@ -68,7 +68,10 @@ service cloud.firestore {
           (request.auth.uid == resource.data.authorUid &&
            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text','editedAt']))
         );
-        allow delete: if request.auth != null && request.auth.uid == resource.data.authorUid;
+        allow delete: if request.auth != null && (
+          request.auth.uid == resource.data.authorUid ||
+          request.auth.uid == get(/databases/$(database)/documents/topics/$(topicId)).data.createdBy
+        );
 
         match /replies/{replyId} {
           allow read: if true;
@@ -96,6 +99,17 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.blockerUid;
       allow delete: if request.auth != null && request.auth.uid == resource.data.blockerUid;
+    }
+    match /follows/{followId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.followerUid;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.followerUid;
+    }
+    match /notifications/{notifId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.recipientUid;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && request.auth.uid == resource.data.recipientUid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
     }
   }
 }
@@ -126,3 +140,12 @@ Until you do this, the live site shows a plain "connect Firebase" setup screen i
 - **"Arguments you've made" on profiles** uses a Firestore collection-group query. The very first time it runs, Firestore may need you to create an index for it — if that section doesn't load, open your browser's console (F12), and Firebase will print a one-click link to create the index. You only ever have to do this once.
 - **Link previews (Open Graph tags)** are static and site-wide — every shared link shows the same generic "Rebuttal — pick a side" preview, not a per-debate one. A single static HTML file can't generate a different preview per URL; that needs a server, which is outside what a free static-hosting setup like this can do.
 - **Browser notifications** (toggle in your profile menu) only fire while this tab is open somewhere in your browser (even in the background) — not when the browser or tab is fully closed. True push-when-closed notifications need Firebase Cloud Functions, which requires upgrading to Firebase's paid Blaze plan even though actual usage would stay free — so this wasn't implemented.
+
+### Newest additions
+- **Dark mode** — toggle in the header (or your profile menu once logged in). Remembers your choice, respects your system preference on first visit.
+- **In-app notifications** — the bell icon in the header. You get one when someone replies to your argument, or when someone you follow starts a new debate.
+- **Following** — Follow/Unfollow on anyone's profile.
+- **Close a debate** — as the owner, stop new arguments from being added without deleting it.
+- **"Most convincing" badge** — highlights the top-voted argument on each side of a debate.
+- **Sort arguments by newest** — a toggle next to "Message someone about this" on any debate.
+- **A soft posting cooldown** (20 seconds between your own posts) to slow down flooding. Like blocking, this is enforced client-side — a deterrent against casual spam, not a hard server-side rate limit. A determined bad actor could still script around it; stopping that properly would need Cloud Functions (same billing tradeoff as real push notifications).
