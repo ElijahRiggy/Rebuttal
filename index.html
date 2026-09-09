@@ -2255,6 +2255,16 @@ function renderMembership(app){
         ${state.myProfile && state.myProfile.membershipType === 'monthly'
           ? `<div style="margin-top:16px;"><button class="btn ghost" id="manage-membership-btn" onclick="manageMembership()">Manage membership</button></div>`
           : `<p style="margin:10px 0 0;font-size:12.5px;font-weight:500;opacity:.85;">Lifetime access — nothing to manage, it's permanent.</p>`}
+      </div>
+      <div class="pricing-card" style="max-width:420px;margin:20px auto 0;text-align:left;">
+        <span class="pricing-plan-name">What you're getting</span>
+        <ul class="pricing-checklist" style="margin-top:14px;">
+          ${checkItem('Unlimited debates, any time')}
+          ${checkItem('Your debates get priority placement')}
+          ${checkItem('Member badge on your profile, comments &amp; chats')}
+          ${checkItem('Custom profile accent color')}
+          ${checkItem('Ad-free browsing (once ads are live)')}
+        </ul>
       </div>` : `
     <div class="pricing-grid pricing-grid-3">
       <div class="pricing-card">
