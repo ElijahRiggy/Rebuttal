@@ -14,6 +14,19 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 32'%3E%3Cpath d='M14.5 0L2 18.5H11.5L9 32L22 12.5H12.5L14.5 0Z' fill='%23D6293F'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- ============================================================
+     GOOGLE ADSENSE (disabled until you're approved)
+     Once you have a real AdSense account and are approved:
+     1. Uncomment the <script> line right below.
+     2. Replace BOTH "ca-pub-XXXXXXXXXXXXXXXX" values (here and
+        in the <ins> tag near the bottom of the page) with your
+        real publisher ID from your AdSense dashboard.
+     3. Replace "0000000000" in the <ins> tag with a real ad
+        unit slot ID (create one under Ads > By ad unit).
+     See the README for the full walkthrough.
+     ============================================================ -->
+<!-- <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script> -->
 <style>
   :root{
     --ink:#181D27;
@@ -472,12 +485,44 @@
   .site-footer{margin-top:64px;padding-top:28px;border-top:1px solid var(--hairline);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
   .site-footer .foot-word{font-family:'Manrope',sans-serif;font-weight:800;font-size:15px;color:var(--ink);}
   .site-footer .foot-note{font-size:13px;color:var(--ink-mute);}
+  .foot-links{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .foot-link{font-family:'Public Sans',sans-serif;font-size:12.5px;font-weight:600;color:var(--ink-mute);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:3px;}
+  .foot-link:hover{color:var(--ink);}
+
+  /* Legal pages */
+  .legal-page{max-width:680px;}
+  .legal-page h1{font-family:'Manrope',sans-serif;font-size:32px;font-weight:800;margin:0 0 6px;letter-spacing:-0.02em;}
+  .legal-updated{font-size:12.5px;color:var(--ink-mute);margin:0 0 28px;}
+  .legal-page h2{font-family:'Manrope',sans-serif;font-size:17px;font-weight:800;margin:28px 0 10px;letter-spacing:-0.01em;}
+  .legal-page p{font-size:14.5px;color:var(--ink-soft);line-height:1.65;margin:0 0 4px;}
+  .legal-page a{color:var(--wine);}
+  .legal-page strong{color:var(--ink);}
+
+  /* Danger zone */
+  .danger-zone{border-color:var(--wine-tint-2);background:var(--wine-tint);}
+
+  /* AdSense slot */
+  .ad-slot-wrap{max-width:1120px;margin:32px auto 0;padding:0 40px;}
+  @media (max-width:720px){ .ad-slot-wrap{padding:0 20px;} }
 </style>
 </head>
 <body>
 <div class="wrap" id="app">
   <div class="loading">loading rebuttal…</div>
 </div>
+
+<!-- AdSense ad unit — disabled (commented out) until you paste in real IDs above and here -->
+<!--
+<div class="ad-slot-wrap">
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+       data-ad-slot="0000000000"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+-->
 
 <script type="module">
 /* ================== FIREBASE SETUP ==================
@@ -680,7 +725,7 @@ function openAuthModal(mode){
   const isSignup = mode === 'signup';
   backdrop.innerHTML = `<div class="modal">
     <h3>${isSignup ? 'Create an account' : 'Log in'}</h3>
-    ${isSignup ? `<label for="auth-name">Display name</label><input type="text" id="auth-name" placeholder="How others will see you" style="margin-bottom:12px;">` : ''}
+    ${isSignup ? `<label for="auth-name">Display name</label><input type="text" id="auth-name" placeholder="How others will see you" maxlength="50" style="margin-bottom:12px;">` : ''}
     <label for="auth-email">Email</label>
     <input type="text" id="auth-email" placeholder="you@example.com" style="margin-bottom:12px;">
     <label for="auth-pass">Password</label>
@@ -1729,6 +1774,24 @@ async function submitProfile(){
   }
 }
 
+async function deleteMyAccount(){
+  if(!state.user) return;
+  const confirmed = await customConfirm("Delete your account? This removes your profile info and login. Your past debates and arguments stay visible — removing them would break other people's replies and conversations — but they won't be linked to a real account anymore. This can't be undone.");
+  if(!confirmed) return;
+  try{
+    await fb.deleteDoc(fb.doc(db, 'users', state.user.uid));
+    await fb.deleteUser(auth.currentUser);
+    showToast('Account deleted');
+    goList();
+  }catch(e){
+    if(e.code === 'auth/requires-recent-login'){
+      await customAlert('For security, deleting your account needs a recent login. Please log out, log back in, and try again right away.');
+    } else {
+      customAlert("Couldn't delete your account. Try again.");
+    }
+  }
+}
+
 /* ================== RENDERING ================== */
 function render(){
   const app = document.getElementById('app');
@@ -1746,6 +1809,8 @@ function render(){
   else if(state.view === 'profile') renderProfile(app);
   else if(state.view === 'edit-profile') renderEditProfile(app);
   else if(state.view === 'notifications') renderNotifications(app);
+  else if(state.view === 'terms') renderTerms(app);
+  else if(state.view === 'privacy') renderPrivacy(app);
   if(viewChanged){
     app.classList.remove('view-fade');
     void app.offsetWidth;
@@ -1966,8 +2031,103 @@ function filterRowsBySearch(q, skipStateUpdate){
 function renderFooter(){
   return `<div class="site-footer">
     <span class="foot-word">Rebuttal</span>
-    <span class="foot-note">Every debate here is public. Argue in good faith.</span>
+    <div class="foot-links">
+      <button class="foot-link" onclick="goTerms()">Terms</button>
+      <button class="foot-link" onclick="goPrivacy()">Privacy</button>
+      <span class="foot-note">Every debate here is public. Argue in good faith.</span>
+    </div>
   </div>`;
+}
+
+function goTerms(){
+  cleanupTopicSubs(); cleanupChatSubs();
+  state.view = 'terms';
+  pushUrl('');
+  render();
+}
+function goPrivacy(){
+  cleanupTopicSubs(); cleanupChatSubs();
+  state.view = 'privacy';
+  pushUrl('');
+  render();
+}
+
+function renderLegalShell(app, title, bodyHtml){
+  app.innerHTML = renderHeader() + `
+    <button class="back" onclick="goList()">&larr; all debates</button>
+    <div class="legal-page">
+      <h1>${title}</h1>
+      <p class="legal-updated">Last updated: ${new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}</p>
+      ${bodyHtml}
+    </div>
+    ${renderFooter()}
+  `;
+}
+
+function renderTerms(app){
+  renderLegalShell(app, 'Terms of Service', `
+    <p><strong>This is a general-purpose template, not legal advice.</strong> It covers the basics for a small user-generated-content site, but you (the site operator) are responsible for making sure it actually fits your situation — consider having a lawyer review it, especially once the site has real traffic, ads, or revenue.</p>
+
+    <h2>1. What Rebuttal is</h2>
+    <p>Rebuttal is a platform where users post debate topics, argue Pro or Con, vote on arguments, and message each other. By creating an account or using the site, you agree to these terms.</p>
+
+    <h2>2. Your account</h2>
+    <p>You're responsible for the accuracy of the information you provide and for anything that happens under your account. You must be old enough to legally consent to these terms in your country (generally 13 or older, but check your local laws). Don't impersonate someone else or create an account for anyone but yourself.</p>
+
+    <h2>3. Your content</h2>
+    <p>You own what you post — debate topics, arguments, replies, messages, profile info. By posting it, you give Rebuttal a license to display, store, and distribute it as part of operating the site (for example, showing your argument to other users, or including it in a shared debate link). You're responsible for making sure you have the right to post what you post.</p>
+
+    <h2>4. Acceptable use</h2>
+    <p>Don't use Rebuttal to harass, threaten, or abuse others; post illegal content; impersonate someone; spam; or attempt to break, scrape, or abuse the site's systems. Reported content and accounts may be reviewed and removed at the operator's discretion.</p>
+
+    <h2>5. Public content</h2>
+    <p>Debate topics, arguments, and public profile info are visible to anyone who visits the site, including people without an account. Don't post anything you're not comfortable with the public seeing.</p>
+
+    <h2>6. Termination</h2>
+    <p>You can delete your account at any time from your profile settings. The site operator can suspend or remove accounts or content that violate these terms.</p>
+
+    <h2>7. No warranty</h2>
+    <p>Rebuttal is provided "as is," without warranties of any kind. The operator isn't liable for content posted by users, or for damages arising from your use of the site, to the fullest extent allowed by law.</p>
+
+    <h2>8. Changes</h2>
+    <p>These terms may be updated from time to time. Continued use of the site after changes means you accept the new terms.</p>
+
+    <h2>9. Contact</h2>
+    <p>Questions about these terms can be directed to the site operator through the site.</p>
+  `);
+}
+
+function renderPrivacy(app){
+  renderLegalShell(app, 'Privacy Policy', `
+    <p><strong>This is a general-purpose template, not legal advice.</strong> Whether it satisfies laws like GDPR or CCPA depends on specifics (where your users are, what you actually collect, whether you run ads) — treat this as a starting point, not a guarantee of compliance.</p>
+
+    <h2>1. What we collect</h2>
+    <p>When you create an account: your email address, display name, and password (handled securely by Firebase Authentication — we never see or store your raw password). Optionally, if you choose to add them: a profile photo, bio, occupation, gender, and political leaning. Everything you post — debate topics, arguments, replies, and messages — is stored to operate the site.</p>
+
+    <h2>2. How it's used</h2>
+    <p>To run the core features of the site: showing your content to other users, letting you log in, sending you email verification, and (if you opt in) browser notifications. We don't sell your data.</p>
+
+    <h2>3. Public information</h2>
+    <p>Your display name, debate topics, arguments, votes, and any profile fields you choose to make visible are public — visible to anyone who visits the site, logged in or not. Direct messages are private between participants, though see the note on data storage below.</p>
+
+    <h2>4. Where data lives</h2>
+    <p>Data is stored using Google Firebase (Firestore and Authentication), a third-party service. Firebase's own privacy and security practices apply to how they host this data — see <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebase's privacy policy</a>.</p>
+
+    <h2>5. Cookies and advertising</h2>
+    <p>This site may display ads served by Google AdSense. Google and its partners may use cookies and similar technologies to serve personalized ads based on your visits to this and other sites. You can opt out of personalized advertising by visiting <a href="https://adssettings.google.com" target="_blank" rel="noopener">Google Ads Settings</a>. See <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener">how Google uses information from sites that use its services</a>.</p>
+
+    <h2>6. Your choices</h2>
+    <p>You can edit or remove most profile information at any time from Edit Profile, including turning off visibility of individual fields. You can delete your account entirely from your profile settings — this removes your personal profile information and login. See the note there about what happens to debates and arguments you've posted.</p>
+
+    <h2>7. Children's privacy</h2>
+    <p>Rebuttal isn't directed at children and isn't intended for use by anyone under 13.</p>
+
+    <h2>8. Changes</h2>
+    <p>This policy may be updated from time to time; continued use of the site after changes means you accept the updated policy.</p>
+
+    <h2>9. Contact</h2>
+    <p>Questions about this policy can be directed to the site operator through the site.</p>
+  `);
 }
 
 function renderNew(app){
@@ -1979,11 +2139,11 @@ function renderNew(app){
     <div class="panel">
       <h2>${isEdit ? 'Edit debate' : 'Start a debate'}</h2>
       <label for="t-title">Topic</label>
-      <input type="text" id="t-title" placeholder="e.g. Remote work is better than office work" value="${esc(existing.title || '')}">
+      <input type="text" id="t-title" placeholder="e.g. Remote work is better than office work" maxlength="150" value="${esc(existing.title || '')}">
       <label for="t-category">Category</label>
       <select id="t-category">${options}</select>
       <label for="t-desc">Context (optional)</label>
-      <textarea id="t-desc" rows="3" placeholder="A sentence or two framing the debate.">${esc(existing.description || '')}</textarea>
+      <textarea id="t-desc" rows="3" maxlength="500" placeholder="A sentence or two framing the debate.">${esc(existing.description || '')}</textarea>
       <div id="t-err" class="err" style="display:none;"></div>
       <div class="form-actions">
         <button class="btn primary" id="create-topic-btn" onclick="submitTopic()">${isEdit ? 'Save changes' : 'Create debate'}</button>
@@ -2033,7 +2193,7 @@ function renderTopic(app){
     return `<div class="replies-box">
       ${list}
       ${state.user ? `<div class="reply-input-row">
-        <textarea id="reply-input-${argId}" rows="2" placeholder="Reply to this argument…"></textarea>
+        <textarea id="reply-input-${argId}" rows="2" maxlength="500" placeholder="Reply to this argument…"></textarea>
         <button class="btn ghost" id="reply-submit-${argId}" onclick="addReply('${argId}')">Reply</button>
       </div>` : ''}
     </div>`;
@@ -2106,7 +2266,7 @@ function renderTopic(app){
         <div class="col-head pro"><span class="label">Pro</span></div>
         ${pro.length ? pro.map((a,i)=>cardHtml(a,i+1)).join('') : '<div class="col-empty">No arguments yet. Be first.</div>'}
         ${!topic.closed ? `<div class="add-arg">
-          <textarea id="pro-input" placeholder="Make the case for..."></textarea>
+          <textarea id="pro-input" maxlength="1200" placeholder="Make the case for..."></textarea>
           <button class="btn pro-btn" id="pro-submit-btn" onclick="addArg('pro')">Add to Pro</button>
         </div>` : ''}
       </div>
@@ -2114,7 +2274,7 @@ function renderTopic(app){
         <div class="col-head con"><span class="label">Con</span></div>
         ${con.length ? con.map((a,i)=>cardHtml(a,i+1)).join('') : '<div class="col-empty">No arguments yet. Be first.</div>'}
         ${!topic.closed ? `<div class="add-arg">
-          <textarea id="con-input" placeholder="Make the case against..."></textarea>
+          <textarea id="con-input" maxlength="1200" placeholder="Make the case against..."></textarea>
           <button class="btn con-btn" id="con-submit-btn" onclick="addArg('con')">Add to Con</button>
         </div>` : ''}
       </div>
@@ -2243,7 +2403,7 @@ function renderChat(app){
     </div>
     <div class="thread">${msgsHtml}</div>
     <div class="msg-input-row">
-      <textarea id="chat-msg" placeholder="Write a message… (Enter to send, Shift+Enter for a new line)"></textarea>
+      <textarea id="chat-msg" maxlength="1200" placeholder="Write a message… (Enter to send, Shift+Enter for a new line)"></textarea>
       <button class="btn primary" id="chat-send-btn" onclick="sendChatMsg()">Send</button>
     </div>
     ${renderFooter()}
@@ -2373,7 +2533,7 @@ function renderEditProfile(app){
       <div class="form-section">
         <h3 class="form-section-title">About you</h3>
         <label for="p-bio">Short bio</label>
-        <textarea id="p-bio" rows="3" placeholder="A sentence about you or your debating style.">${esc(p.bio || '')}</textarea>
+        <textarea id="p-bio" rows="3" maxlength="300" placeholder="A sentence about you or your debating style.">${esc(p.bio || '')}</textarea>
       </div>
 
       <div class="form-section">
@@ -2381,12 +2541,12 @@ function renderEditProfile(app){
         <div class="form-grid-2">
           <div>
             <label for="p-occupation">Occupation</label>
-            <input type="text" id="p-occupation" placeholder="e.g. Teacher, Software Engineer" value="${esc(p.occupation || '')}">
+            <input type="text" id="p-occupation" placeholder="e.g. Teacher, Software Engineer" maxlength="80" value="${esc(p.occupation || '')}">
             <label class="visibility-toggle"><input type="checkbox" id="p-occupation-visible" ${p.showOccupation !== false ? 'checked' : ''}> Show on my public profile</label>
           </div>
           <div>
             <label for="p-gender">Gender</label>
-            <input type="text" id="p-gender" placeholder="e.g. Woman, Man, Non-binary" value="${esc(p.gender || '')}">
+            <input type="text" id="p-gender" placeholder="e.g. Woman, Man, Non-binary" maxlength="60" value="${esc(p.gender || '')}">
             <label class="visibility-toggle"><input type="checkbox" id="p-gender-visible" ${p.showGender !== false ? 'checked' : ''}> Show on my public profile</label>
           </div>
         </div>
@@ -2402,6 +2562,11 @@ function renderEditProfile(app){
         <button class="btn ghost" onclick="openProfile('${state.user.uid}')">Cancel</button>
       </div>
     </div>
+    <div class="panel danger-zone">
+      <h3 class="form-section-title" style="color:var(--wine);">Danger zone</h3>
+      <p style="font-size:13.5px;color:var(--ink-soft);margin:0 0 16px;">Deleting your account removes your profile and login. Your past posts stay visible to keep other people's conversations intact, but won't be tied to a real account anymore.</p>
+      <button class="btn ghost" style="border-color:var(--wine);color:var(--wine);" onclick="deleteMyAccount()">Delete my account</button>
+    </div>
     ${renderFooter()}
   `;
 }
@@ -2415,7 +2580,7 @@ Object.assign(window, {
   goEditTopic, deleteTopic, editArgument, deleteArgument, reportContent, toggleReplies, addReply,
   deleteMessage, blockUserProfile, unblockUserProfile, resendVerification, dismissVerifyBanner, filterRowsBySearch,
   toggleNotifications, toggleDarkMode, followUser, unfollowUser, goNotifications, openNotification,
-  markAllNotificationsRead, setArgSortMode, toggleCloseTopic
+  markAllNotificationsRead, setArgSortMode, toggleCloseTopic, goTerms, goPrivacy, deleteMyAccount
 });
 
 /* ---------- init ---------- */

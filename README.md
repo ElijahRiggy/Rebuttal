@@ -52,7 +52,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /topics/{topicId} {
       allow read: if true;
-      allow create: if request.auth != null;
+      allow create: if request.auth != null &&
+        request.resource.data.title.size() <= 150 &&
+        (!('description' in request.resource.data) || request.resource.data.description.size() <= 500);
       allow update: if request.auth != null && (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes','voterChoices','proCount','conCount']) ||
         (request.auth.uid == resource.data.createdBy &&
@@ -62,7 +64,7 @@ service cloud.firestore {
 
       match /arguments/{argId} {
         allow read: if true;
-        allow create: if request.auth != null;
+        allow create: if request.auth != null && request.resource.data.text.size() <= 1200;
         allow update: if request.auth != null && (
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes','voterChoices','replyCount']) ||
           (request.auth.uid == resource.data.authorUid &&
@@ -75,7 +77,7 @@ service cloud.firestore {
 
         match /replies/{replyId} {
           allow read: if true;
-          allow create: if request.auth != null;
+          allow create: if request.auth != null && request.resource.data.text.size() <= 500;
           allow delete: if request.auth != null && request.auth.uid == resource.data.authorUid;
         }
       }
@@ -83,7 +85,8 @@ service cloud.firestore {
     match /threads/{threadId} {
       allow read, write: if request.auth != null;
       match /messages/{msgId} {
-        allow read, create: if request.auth != null;
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && request.resource.data.text.size() <= 1200;
         allow delete: if request.auth != null && request.auth.uid == resource.data.authorUid;
       }
     }
@@ -149,3 +152,21 @@ Until you do this, the live site shows a plain "connect Firebase" setup screen i
 - **"Most convincing" badge** — highlights the top-voted argument on each side of a debate.
 - **Sort arguments by newest** — a toggle next to "Message someone about this" on any debate.
 - **A soft posting cooldown** (20 seconds between your own posts) to slow down flooding. Like blocking, this is enforced client-side — a deterrent against casual spam, not a hard server-side rate limit. A determined bad actor could still script around it; stopping that properly would need Cloud Functions (same billing tradeoff as real push notifications).
+
+### Legal pages, account deletion, content limits, and AdSense
+
+**Terms of Service and Privacy Policy** pages are live, linked from the footer of every page. Both say clearly, in the page itself, that they're general templates and not legal advice — have an actual lawyer review them before this is a serious business, especially once ads or revenue are involved. The Privacy Policy already discloses Firebase as your data processor and AdSense/cookie use in roughly the language Google expects to see.
+
+**Account deletion** — "Danger zone" at the bottom of Edit Profile. Deletes your profile document and Firebase login. Your past debates and arguments stay up (deleting them would break other people's replies and conversations), but they're no longer tied to a real, loggable-into account — the same pattern most established sites use for "deleted user."
+
+**Content limits** are enforced two ways: `maxlength` on every input (so you can't even type past the limit), and matching size checks in the Firestore rules below (so someone couldn't bypass the limit by talking to Firestore directly). Current caps: debate title 150 chars, description 500, arguments 1200, replies 500, chat messages 1200, bio 300.
+
+**AdSense** — the script tag and ad slot are already in `index.html`, wired up correctly, but commented out. To turn them on:
+
+1. Go to **adsense.google.com** and apply with your own Google account. This needs your real identity and payment details — something only you can do, not something I can set up for you.
+2. Google reviews the site before approving it. Having a live Privacy Policy (done) and real content (your debates) helps; very new or low-traffic sites are sometimes asked to wait and reapply later.
+3. Once approved, get your **Publisher ID** (looks like `ca-pub-1234567890123456`) from your AdSense dashboard.
+4. In `index.html`, uncomment the `<script async src="https://pagead2.googlesyndication.com/...">` line near the top of `<head>`, and replace `ca-pub-XXXXXXXXXXXXXXXX` with your real publisher ID.
+5. Create an ad unit in AdSense (**Ads → By ad unit → Display ads**), which gives you an ad slot ID (a number like `1234567890`).
+6. Near the bottom of `index.html`, uncomment the `<div class="ad-slot-wrap">...</div>` block, and replace both `ca-pub-XXXXXXXXXXXXXXXX` and `0000000000` with your real publisher ID and ad slot ID.
+7. Push the change. Ads can take a little while to actually start appearing even after everything's correctly configured — that's normal on Google's end, not a sign something's broken.
