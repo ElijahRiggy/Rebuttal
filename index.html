@@ -126,6 +126,15 @@
   .btn.primary:disabled{opacity:.45;box-shadow:none;}
 
   .nav-right{display:flex;align-items:center;gap:20px;}
+  .support-btn{
+    display:inline-flex;align-items:center;gap:6px;
+    font-family:'Public Sans',sans-serif;font-size:15px;font-weight:700;color:#fff;
+    background:var(--wine);border-radius:22px;padding:10px 20px;cursor:pointer;
+    text-decoration:none;box-shadow:var(--shadow-sm);white-space:nowrap;
+    transition:background .15s,box-shadow .15s,transform .15s;
+  }
+  .support-btn:hover{background:var(--wine-hover);box-shadow:var(--shadow-md);transform:translateY(-1px);}
+  .support-btn::before{content:'♥';font-size:14px;line-height:1;}
   .messages-nav{
     font-family:'Public Sans',sans-serif;font-size:14.5px;font-weight:600;color:var(--ink-soft);
     background:var(--surface-sunken);border:none;border-radius:20px;padding:8px 16px;cursor:pointer;
@@ -1891,8 +1900,10 @@ function renderHeader(){
   const count = unreadCount();
   const notifCount = appUnreadCount();
   const myPhoto = state.myProfile && state.myProfile.photoURL;
+  const supportBtn = `<a class="support-btn" href="${SUPPORT_URL}" target="_blank" rel="noopener">Support Rebuttal</a>`;
   const authSection = state.user
     ? `<div class="auth-nav">
+        ${supportBtn}
         <button class="messages-nav ${state.view==='notifications' ? 'active' : ''}" onclick="goNotifications()" title="Notifications">&#128276;${notifCount ? ` <span class="badge-dot">${notifCount}</span>` : ''}</button>
         <button class="messages-nav ${state.view==='inbox'||state.view==='chat' ? 'active' : ''}" onclick="goInbox()">messages${count ? ` <span class="badge-dot">${count}</span>` : ''}</button>
         <div class="user-menu">
@@ -1912,6 +1923,7 @@ function renderHeader(){
         </div>
       </div>`
     : `<div class="auth-nav">
+        ${supportBtn}
         <button class="messages-nav" onclick="toggleDarkMode()" title="Toggle theme">${state.darkMode ? 'Light' : 'Dark'}</button>
         <button class="auth-btn" onclick="openAuthModal('login')">Log in</button>
         <button class="auth-btn filled" onclick="openAuthModal('signup')">Sign up</button>
@@ -2039,7 +2051,6 @@ function renderFooter(){
       <button class="foot-link" onclick="goAbout()">About</button>
       <button class="foot-link" onclick="goTerms()">Terms</button>
       <button class="foot-link" onclick="goPrivacy()">Privacy</button>
-      <a class="foot-link" href="${SUPPORT_URL}" target="_blank" rel="noopener">Support this site</a>
       <span class="foot-note">Every debate here is public. Argue in good faith.</span>
     </div>
   </div>`;
