@@ -11,6 +11,7 @@
 <meta property="twitter:card" content="summary">
 <meta property="twitter:title" content="Rebuttal — pick a side">
 <meta property="twitter:description" content="Post a debate, argue Pro or Con, and let the votes decide who's actually winning the argument.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 32'%3E%3Cpath d='M14.5 0L2 18.5H11.5L9 32L22 12.5H12.5L14.5 0Z' fill='%23D6293F'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -268,8 +269,24 @@
   .col-empty{font-size:14px;color:var(--ink-mute);padding:24px;text-align:center;background:var(--surface-sunken);border-radius:12px;margin-bottom:16px;}
   .loading{padding:72px 0;text-align:center;color:var(--ink-mute);font-size:15px;}
 
+  /* Page transitions */
+  .view-fade{animation:viewFadeIn .28s ease-out;}
+  @keyframes viewFadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  @media (prefers-reduced-motion: reduce){
+    .view-fade, .msg.msg-new, .thread-row.row-in, .modal, .modal-backdrop, .toast{animation:none !important;}
+  }
+
+  /* Skeleton loading */
+  .skeleton-wrap{padding:8px 0;}
+  .skeleton-line{height:14px;border-radius:6px;background:var(--surface-sunken);margin-bottom:14px;animation:skeletonPulse 1.3s ease-in-out infinite;}
+  .skeleton-title{height:30px;width:55%;margin-bottom:22px;}
+  .skeleton-card{height:88px;border-radius:16px;background:var(--surface-sunken);margin-bottom:14px;animation:skeletonPulse 1.3s ease-in-out infinite;}
+  @keyframes skeletonPulse{0%,100%{opacity:.55;}50%{opacity:1;}}
+
   .modal-backdrop{position:fixed;inset:0;background:rgba(24,29,39,0.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;animation:backdropIn .18s ease-out;}
   .modal{background:var(--surface);border-radius:20px;border:1px solid var(--hairline);padding:34px;max-width:420px;width:100%;box-shadow:var(--shadow-lg);animation:modalIn .22s cubic-bezier(.2,.8,.2,1);}
+  .modal.modal-sm{padding:28px;}
+  .modal-message{font-size:15px;color:var(--ink);line-height:1.55;margin:0 0 4px;}
   @keyframes backdropIn{from{opacity:0;}to{opacity:1;}}
   @keyframes modalIn{from{opacity:0;transform:translateY(10px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);}}
   .modal h3{font-family:'Manrope',sans-serif;font-size:23px;font-weight:800;margin:0 0 18px;color:var(--ink);letter-spacing:-0.01em;}
@@ -515,7 +532,8 @@ const state = {
   appNotifications: [], appNotifHasLoadedOnce: false,
   argSortMode: 'votes',
   lastArgPostTime: 0, lastTopicPostTime: 0,
-  myFollowing: []
+  myFollowing: [],
+  _lastRenderedView: null
 };
 const POST_COOLDOWN_MS = 20000;
 
@@ -562,6 +580,54 @@ function showToast(msg){
   if(state.toastTimer) clearTimeout(state.toastTimer);
   state.toastTimer = setTimeout(() => { state.toastMsg = null; render(); }, 2500);
 }
+
+/* ---------- custom alert/confirm (replaces jarring native browser dialogs) ---------- */
+function customAlert(message){
+  return new Promise((resolve) => {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `<div class="modal modal-sm">
+      <p class="modal-message">${esc(message)}</p>
+      <div class="modal-actions"><button class="btn primary" id="calert-ok">OK</button></div>
+    </div>`;
+    document.body.appendChild(backdrop);
+    const escHandler = (e) => { if(e.key === 'Escape') close(); };
+    const close = () => {
+      if(document.body.contains(backdrop)) document.body.removeChild(backdrop);
+      document.removeEventListener('keydown', escHandler);
+      resolve();
+    };
+    backdrop.querySelector('#calert-ok').onclick = close;
+    backdrop.addEventListener('click', (e) => { if(e.target === backdrop) close(); });
+    document.addEventListener('keydown', escHandler);
+    backdrop.querySelector('#calert-ok').focus();
+  });
+}
+function customConfirm(message){
+  return new Promise((resolve) => {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `<div class="modal modal-sm">
+      <p class="modal-message">${esc(message)}</p>
+      <div class="modal-actions">
+        <button class="btn ghost" id="cconfirm-cancel">Cancel</button>
+        <button class="btn primary" id="cconfirm-ok">Confirm</button>
+      </div>
+    </div>`;
+    document.body.appendChild(backdrop);
+    const escHandler = (e) => { if(e.key === 'Escape') cleanup(false); };
+    const cleanup = (result) => {
+      if(document.body.contains(backdrop)) document.body.removeChild(backdrop);
+      document.removeEventListener('keydown', escHandler);
+      resolve(result);
+    };
+    backdrop.querySelector('#cconfirm-cancel').onclick = () => cleanup(false);
+    backdrop.querySelector('#cconfirm-ok').onclick = () => cleanup(true);
+    backdrop.addEventListener('click', (e) => { if(e.target === backdrop) cleanup(false); });
+    document.addEventListener('keydown', escHandler);
+    backdrop.querySelector('#cconfirm-ok').focus();
+  });
+}
 function pushUrl(qs){
   history.pushState({}, '', location.pathname + qs);
 }
@@ -571,7 +637,7 @@ async function resendVerification(){
     await fb.sendEmailVerification(auth.currentUser || state.user);
     showToast('Verification email sent — check your inbox');
   }catch(e){
-    alert("Couldn't send that right now. Try again in a bit.");
+    customAlert("Couldn't send that right now. Try again in a bit.");
   }
 }
 function dismissVerifyBanner(){
@@ -739,7 +805,7 @@ function maybeNotifyNewMessages(oldThreads, newThreads){
 
 async function toggleNotifications(){
   if(typeof Notification === 'undefined'){
-    alert("Your browser doesn't support notifications.");
+    customAlert("Your browser doesn't support notifications.");
     return;
   }
   if(state.notificationsEnabled){
@@ -753,7 +819,7 @@ async function toggleNotifications(){
     state.notificationsEnabled = true;
     showToast('Notifications on — you\'ll get a browser notification for new messages while this tab is open in the background');
   } else {
-    alert("Notifications were blocked. You can re-enable them in your browser's site settings.");
+    customAlert("Notifications were blocked. You can re-enable them in your browser's site settings.");
   }
   render();
 }
@@ -887,7 +953,7 @@ async function submitTopic(){
       await openTopic(ref.id);
     }
   }catch(e){
-    alert("Couldn't save that debate. Try again.");
+    customAlert("Couldn't save that debate. Try again.");
   }finally{
     state.submittingTopic = false;
   }
@@ -902,7 +968,7 @@ function goEditTopic(){
 }
 
 async function deleteTopic(id){
-  if(!confirm('Delete this debate and every argument in it? This can\'t be undone.')) return;
+  if(!(await customConfirm('Delete this debate and every argument in it? This can\'t be undone.'))) return;
   try{
     const argsSnap = await fb.getDocs(fb.collection(db, 'topics', id, 'arguments'));
     for(const d of argsSnap.docs){
@@ -912,7 +978,7 @@ async function deleteTopic(id){
     showToast('Debate deleted');
     goList();
   }catch(e){
-    alert("Couldn't delete that debate. Try again.");
+    customAlert("Couldn't delete that debate. Try again.");
   }
 }
 
@@ -920,12 +986,12 @@ async function toggleCloseTopic(id){
   const topic = state.currentTopic;
   if(!topic || topic.createdBy !== state.user.uid) return;
   const closing = !topic.closed;
-  if(closing && !confirm('Close this debate? No new arguments can be added until you reopen it.')) return;
+  if(closing && !(await customConfirm('Close this debate? No new arguments can be added until you reopen it.'))) return;
   try{
     await fb.updateDoc(fb.doc(db, 'topics', id), { closed: closing });
     showToast(closing ? 'Debate closed' : 'Debate reopened');
   }catch(e){
-    alert("Couldn't update that. Try again.");
+    customAlert("Couldn't update that. Try again.");
   }
 }
 
@@ -961,7 +1027,7 @@ async function openTopic(id){
 async function addArg(side){
   if(!requireAuth()) return;
   if(state.submittingArg[side]) return;
-  if(state.currentTopic && state.currentTopic.closed){ alert('This debate is closed to new arguments.'); return; }
+  if(state.currentTopic && state.currentTopic.closed){ customAlert('This debate is closed to new arguments.'); return; }
   const waitMs = POST_COOLDOWN_MS - (Date.now() - state.lastArgPostTime);
   if(waitMs > 0){
     showToast(`Posting a bit fast — wait ${Math.ceil(waitMs/1000)}s`);
@@ -985,7 +1051,7 @@ async function addArg(side){
     state.lastArgPostTime = Date.now();
     inputEl.value = '';
   }catch(e){
-    alert("Couldn't post that argument. Try again.");
+    customAlert("Couldn't post that argument. Try again.");
   }finally{
     state.submittingArg[side] = false;
     render();
@@ -1056,14 +1122,14 @@ function editArgument(argId){
       close();
       showToast('Argument updated');
     }catch(e){
-      alert("Couldn't save that. Try again.");
+      customAlert("Couldn't save that. Try again.");
       saveBtn.disabled = false; saveBtn.textContent = 'Save';
     }
   };
 }
 
 async function deleteArgument(argId, side){
-  if(!confirm("Delete this argument? This can't be undone.")) return;
+  if(!(await customConfirm("Delete this argument? This can't be undone."))) return;
   try{
     await fb.deleteDoc(fb.doc(db, 'topics', state.currentTopicId, 'arguments', argId));
     await fb.updateDoc(fb.doc(db, 'topics', state.currentTopicId), {
@@ -1071,7 +1137,7 @@ async function deleteArgument(argId, side){
     });
     showToast('Argument deleted');
   }catch(e){
-    alert("Couldn't delete that argument. Try again.");
+    customAlert("Couldn't delete that argument. Try again.");
   }
 }
 
@@ -1103,7 +1169,7 @@ function reportContent(type, targetId, contextId){
       close();
       showToast('Report submitted — thank you');
     }catch(e){
-      alert("Couldn't submit that report. Try again.");
+      customAlert("Couldn't submit that report. Try again.");
       btn.disabled = false; btn.textContent = 'Submit report';
     }
   };
@@ -1161,7 +1227,7 @@ async function addReply(argId){
     input.value = '';
     await loadReplies(argId);
   }catch(e){
-    alert("Couldn't post that reply. Try again.");
+    customAlert("Couldn't post that reply. Try again.");
   }finally{
     if(btn) btn.disabled = false;
   }
@@ -1203,7 +1269,7 @@ async function seedExampleDebate(){
     await openTopic(ref.id);
     showToast('Test debate created — click "Debate" under any argument to try the flow.');
   }catch(e){
-    alert("Couldn't seed the example debate. Check you're logged in and Firestore rules are published.");
+    customAlert("Couldn't seed the example debate. Check you're logged in and Firestore rules are published.");
   }
 }
 
@@ -1230,7 +1296,7 @@ async function isBlockedByRecipient(otherUid){
 }
 async function blockUserProfile(uid, name){
   if(!requireAuth()) return;
-  if(!confirm(`Block ${name}? They won't be able to message you anymore.`)) return;
+  if(!(await customConfirm(`Block ${name}? They won't be able to message you anymore.`))) return;
   try{
     await fb.setDoc(fb.doc(db, 'blocks', state.user.uid + '_' + uid), {
       blockerUid: state.user.uid, blockedUid: uid, createdAt: fb.serverTimestamp()
@@ -1239,7 +1305,7 @@ async function blockUserProfile(uid, name){
     showToast('Blocked');
     render();
   }catch(e){
-    alert("Couldn't block that person. Try again.");
+    customAlert("Couldn't block that person. Try again.");
   }
 }
 async function unblockUserProfile(uid){
@@ -1249,7 +1315,7 @@ async function unblockUserProfile(uid){
     showToast('Unblocked');
     render();
   }catch(e){
-    alert("Couldn't unblock that person. Try again.");
+    customAlert("Couldn't unblock that person. Try again.");
   }
 }
 
@@ -1275,7 +1341,7 @@ async function followUser(uid, name){
     showToast(`Following ${name}`);
     render();
   }catch(e){
-    alert("Couldn't follow that person. Try again.");
+    customAlert("Couldn't follow that person. Try again.");
   }
 }
 async function unfollowUser(uid){
@@ -1286,7 +1352,7 @@ async function unfollowUser(uid){
     showToast('Unfollowed');
     render();
   }catch(e){
-    alert("Couldn't unfollow that person. Try again.");
+    customAlert("Couldn't unfollow that person. Try again.");
   }
 }
 async function notifyFollowersOfNewTopic(topicId, topicTitle){
@@ -1339,7 +1405,7 @@ async function challengeAuthor(argId){
   if(!requireAuth()) return;
   const arg = (state.currentArgs || []).find(a => a.id === argId);
   if(!arg) return;
-  if(arg.authorUid === state.user.uid){ alert("That's your own argument."); return; }
+  if(arg.authorUid === state.user.uid){ customAlert("That's your own argument."); return; }
   const mySide = arg.side === 'pro' ? 'con' : 'pro';
   const line = `Want to debate "${state.currentTopic.title}" one-on-one? I'll argue ${mySide}.`;
   try{
@@ -1347,8 +1413,8 @@ async function challengeAuthor(argId){
     await sendThreadMessage(tid, arg.authorUid, arg.author, line);
     await openChat(tid, arg.authorUid, arg.author);
   }catch(e){
-    if(e.code === 'blocked') alert("You can't message this person right now.");
-    else alert("Couldn't start that conversation. Try again.");
+    if(e.code === 'blocked') customAlert("You can't message this person right now.");
+    else customAlert("Couldn't start that conversation. Try again.");
   }
 }
 
@@ -1449,7 +1515,7 @@ async function sendChatMsg(){
     await sendThreadMessage(state.currentThreadId, state.chatWithUid, state.chatWithName, text);
     input.value = '';
   }catch(e){
-    alert(e.code === 'blocked' ? "You can't message this person right now." : "Couldn't send that message. Try again.");
+    customAlert(e.code === 'blocked' ? "You can't message this person right now." : "Couldn't send that message. Try again.");
   }finally{
     state.submittingMsg = false;
     render();
@@ -1457,7 +1523,7 @@ async function sendChatMsg(){
 }
 
 async function deleteMessage(msgId){
-  if(!confirm('Unsend this message?')) return;
+  if(!(await customConfirm('Unsend this message?'))) return;
   try{
     await fb.deleteDoc(fb.doc(db, 'threads', state.currentThreadId, 'messages', msgId));
     const remaining = (state.chatMessages || []).filter(m => m.id !== msgId);
@@ -1467,7 +1533,7 @@ async function deleteMessage(msgId){
       lastAuthorUid: last ? last.authorUid : ''
     }, { merge: true });
   }catch(e){
-    alert("Couldn't unsend that. Try again.");
+    customAlert("Couldn't unsend that. Try again.");
   }
 }
 
@@ -1590,7 +1656,7 @@ function updatePhotoPreview(){
 function handlePhotoFile(inputEl){
   const file = inputEl.files && inputEl.files[0];
   if(!file) return;
-  if(!file.type.startsWith('image/')){ alert('Please choose an image file.'); return; }
+  if(!file.type.startsWith('image/')){ customAlert('Please choose an image file.'); return; }
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = new Image();
@@ -1610,13 +1676,13 @@ function handlePhotoFile(inputEl){
         dataUrl = canvas.toDataURL('image/jpeg', quality);
       }
       if(dataUrl.length > 900000){
-        alert("That image is too large even after compressing — try a smaller or simpler photo.");
+        customAlert("That image is too large even after compressing — try a smaller or simpler photo.");
         return;
       }
       state.pendingPhotoDataUrl = dataUrl;
       updatePhotoPreview();
     };
-    img.onerror = () => alert("Couldn't read that image. Try a different file.");
+    img.onerror = () => customAlert("Couldn't read that image. Try a different file.");
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
@@ -1657,7 +1723,7 @@ async function submitProfile(){
     showToast('Profile saved');
     await openProfile(state.user.uid);
   }catch(e){
-    alert("Couldn't save your profile. Try again — if the photo is large, try a smaller one.");
+    customAlert("Couldn't save your profile. Try again — if the photo is large, try a smaller one.");
   }finally{
     state.submittingProfile = false;
   }
@@ -1670,6 +1736,8 @@ function render(){
   if(!state.user && (state.view === 'chat' || state.view === 'inbox' || state.view === 'new' || state.view === 'edit-profile' || state.view === 'notifications')){
     state.view = 'list';
   }
+  const viewChanged = state.view !== state._lastRenderedView;
+  state._lastRenderedView = state.view;
   if(state.view === 'list') renderList(app);
   else if(state.view === 'new') renderNew(app);
   else if(state.view === 'topic') renderTopic(app);
@@ -1678,7 +1746,21 @@ function render(){
   else if(state.view === 'profile') renderProfile(app);
   else if(state.view === 'edit-profile') renderEditProfile(app);
   else if(state.view === 'notifications') renderNotifications(app);
+  if(viewChanged){
+    app.classList.remove('view-fade');
+    void app.offsetWidth;
+    app.classList.add('view-fade');
+  }
   renderToast();
+}
+
+function skeletonBlock(){
+  return `<div class="skeleton-wrap">
+    <div class="skeleton-line skeleton-title"></div>
+    <div class="skeleton-line" style="width:60%;"></div>
+    <div class="skeleton-card"></div>
+    <div class="skeleton-card"></div>
+  </div>`;
 }
 
 function renderNotifications(app){
@@ -1848,7 +1930,7 @@ function renderList(app){
       </div>
     </div>
     ${renderVerifyBanner()}
-    <input type="text" id="search-input" class="search-input" placeholder="Search debates by title…" oninput="filterRowsBySearch(this.value)" style="margin-bottom:18px;">
+    <input type="text" id="search-input" class="search-input" placeholder="Search debates by title… (press /)" oninput="filterRowsBySearch(this.value)" style="margin-bottom:18px;">
     <div class="list-controls">
       <div class="category-filters">${chips}</div>
       <div class="sort-toggle">
@@ -1914,7 +1996,7 @@ function renderNew(app){
 
 function renderTopic(app){
   if(!state.currentTopic){
-    app.innerHTML = renderHeader() + `<div class="loading">loading debate…</div>`;
+    app.innerHTML = renderHeader() + skeletonBlock();
     return;
   }
   const topic = state.currentTopic;
@@ -2102,7 +2184,7 @@ function renderChat(app){
   const t = state.currentThread;
   const av = avatarStyle(state.chatWithName);
   if(!t){
-    app.innerHTML = renderHeader() + `<div class="loading">loading conversation…</div>`;
+    app.innerHTML = renderHeader() + skeletonBlock();
     return;
   }
 
@@ -2197,7 +2279,7 @@ function renderProfile(app){
   const isMe = state.user && state.user.uid === uid;
   const isBlocked = state.myBlocks.includes(uid);
   if(!state.viewingProfileLoaded){
-    app.innerHTML = renderHeader() + `<div class="loading">loading profile…</div>`;
+    app.innerHTML = renderHeader() + skeletonBlock();
     return;
   }
   const name = (p && p.displayName) || (isMe ? state.user.displayName : 'This debater');
@@ -2374,6 +2456,23 @@ if(NEEDS_SETUP){
     if(state.userMenuOpen && !e.target.closest('.user-menu')){
       state.userMenuOpen = false;
       render();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    const tag = document.activeElement ? document.activeElement.tagName : '';
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    if(e.key === '/' && !typing && state.view === 'list'){
+      e.preventDefault();
+      const searchInput = document.getElementById('search-input');
+      if(searchInput) searchInput.focus();
+    }
+    if(e.key === 'Escape' && state.userMenuOpen){
+      state.userMenuOpen = false;
+      render();
+    }
+    if(e.key === 'Escape'){
+      const backdrop = document.querySelector('.modal-backdrop');
+      if(backdrop && document.body.contains(backdrop)) document.body.removeChild(backdrop);
     }
   });
 }
