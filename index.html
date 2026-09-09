@@ -1420,6 +1420,50 @@ async function seedExampleDebate(){
   }
 }
 
+/* ---------- one-time admin utility: seed 2 default debates per category ----------
+   Run this once from the browser console (F12) on the live site while logged in:
+     seedDefaultDebates()
+   Creates 16 topics total (no fake arguments — these start empty, for real users
+   to actually argue in). Safe to run more than once, but will create duplicates
+   if you do — it doesn't check for existing debates first. */
+const DEFAULT_DEBATES = [
+  { category: 'Society', title: 'Social media does more harm than good', description: 'Weighing the connection against the cost.' },
+  { category: 'Society', title: 'College should be free', description: 'Public good or personal investment?' },
+  { category: 'Technology', title: 'AI will do more good than harm for humanity', description: 'The biggest question of the next decade.' },
+  { category: 'Technology', title: 'Social media companies should be held liable for content posted on their platforms', description: 'Where does platform responsibility end?' },
+  { category: 'Politics', title: 'The electoral college should be abolished', description: 'A structural debate about how votes should count.' },
+  { category: 'Politics', title: 'Voting should be mandatory', description: 'Civic duty vs. personal choice.' },
+  { category: 'Health', title: 'Junk food should be taxed like cigarettes', description: 'Public health policy or government overreach?' },
+  { category: 'Health', title: 'Universal healthcare should replace private insurance', description: 'One of the most argued policy questions there is.' },
+  { category: 'Entertainment', title: 'Movie theaters will be obsolete within 10 years', description: 'Streaming vs. the big screen.' },
+  { category: 'Entertainment', title: 'AI-generated art should be considered real art', description: 'What actually makes something art?' },
+  { category: 'Sports', title: 'College athletes should be paid', description: 'Amateurism vs. the money they generate.' },
+  { category: 'Sports', title: 'Instant replay has made sports worse', description: 'Accuracy vs. the flow of the game.' },
+  { category: 'Science', title: 'Space exploration funding should be prioritized over ocean exploration', description: 'Two frontiers, one budget.' },
+  { category: 'Science', title: 'Genetically modified food is safe and beneficial', description: 'A science debate that never really settled.' },
+  { category: 'Other', title: 'Pineapple belongs on pizza', description: 'The most argued food opinion on the internet.' },
+  { category: 'Other', title: 'Zoos should be banned', description: 'Conservation and education vs. captivity.' }
+];
+async function seedDefaultDebates(){
+  if(!requireAuth()) return;
+  let created = 0;
+  for(const d of DEFAULT_DEBATES){
+    try{
+      await fb.addDoc(fb.collection(db, 'topics'), {
+        title: d.title, description: d.description, category: d.category,
+        createdAt: fb.serverTimestamp(),
+        createdBy: state.user.uid, createdByName: state.user.displayName,
+        proCount: 0, conCount: 0, votes: 0, voterChoices: {}, closed: false
+      });
+      created++;
+    }catch(e){
+      console.error('Failed to create default debate:', d.title, e);
+    }
+  }
+  showToast(`Created ${created} of ${DEFAULT_DEBATES.length} default debates`);
+  goList();
+}
+
 /* ---------- messaging ---------- */
 function threadIdFor(uidA, uidB){ return [uidA, uidB].sort().join('_'); }
 
@@ -2877,7 +2921,7 @@ function renderEditProfile(app){
 Object.assign(window, {
   goList, goNew, goInbox, openTopic, openChat, submitTopic, addArg, vote, voteTopic,
   shareTopic, challengeAuthor, startChallenge, sendChatMsg, setCategoryFilter, setSortMode, toggleMembersOnlyFilter,
-  openAuthModal, logOut, seedExampleDebate, openProfile, goEditProfile, submitProfile,
+  openAuthModal, logOut, seedExampleDebate, seedDefaultDebates, openProfile, goEditProfile, submitProfile,
   handlePhotoFile, removePhoto, selectPolitical, selectAccentColor, toggleUserMenu,
   goEditTopic, deleteTopic, editArgument, deleteArgument, reportContent, toggleReplies, addReply,
   deleteMessage, blockUserProfile, unblockUserProfile, resendVerification, dismissVerifyBanner, filterRowsBySearch,
