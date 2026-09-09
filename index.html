@@ -215,6 +215,10 @@
   .sort-btn{font-family:'Public Sans',sans-serif;font-size:13px;font-weight:600;color:var(--ink-soft);background:none;border:none;border-radius:16px;padding:6px 14px;cursor:pointer;}
   .sort-btn.active{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm);}
 
+  .member-filter-toggle{font-family:'Public Sans',sans-serif;font-size:13px;font-weight:700;color:var(--amber);background:var(--amber-tint);border:1.5px solid transparent;border-radius:20px;padding:7px 15px;cursor:pointer;}
+  .member-filter-toggle:hover{border-color:var(--amber);}
+  .member-filter-toggle.active{background:var(--amber);color:#fff;}
+
   .row{
     display:flex;justify-content:space-between;align-items:flex-start;gap:24px;
     padding:26px 28px;border-radius:16px;background:var(--surface);
@@ -636,7 +640,7 @@ if (!NEEDS_SETUP) {
 
 const state = {
   view: 'list', user: null, authError: null,
-  topics: [], categoryFilter: 'all', sortMode: 'newest',
+  topics: [], categoryFilter: 'all', sortMode: 'newest', membersOnlyFilter: false,
   currentTopicId: null, currentTopic: null, currentArgs: [],
   threads: [], currentThreadId: null, currentThread: null, chatWithUid: null, chatWithName: null, chatWithIsMember: false, chatMessages: [],
   chatAutoFocusPending: false, lastRenderedMsgCount: -1, inboxHasLoadedOnce: false,
@@ -2081,11 +2085,13 @@ function renderList(app){
   const searchSel = existingSearch ? existingSearch.selectionStart : null;
 
   const filtered = state.categoryFilter === 'all' ? state.topics : state.topics.filter(t => t.category === state.categoryFilter);
-  const sorted = [...filtered].sort((a, b) => {
+  const scoped = state.membersOnlyFilter ? filtered.filter(t => t.creatorIsMember) : filtered;
+  const sorted = [...scoped].sort((a, b) => {
+    if(state.sortMode === 'top') return (b.votes||0) - (a.votes||0);
+    // Newest mode: member-created debates get priority placement, then newest-first within each group.
     const aMember = a.creatorIsMember ? 1 : 0;
     const bMember = b.creatorIsMember ? 1 : 0;
-    if(aMember !== bMember) return bMember - aMember; // Member-created debates get priority placement
-    if(state.sortMode === 'top') return (b.votes||0) - (a.votes||0);
+    if(aMember !== bMember) return bMember - aMember;
     const at = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : a.createdAt) : 0;
     const bt = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : b.createdAt) : 0;
     return bt - at;
@@ -2096,7 +2102,9 @@ function renderList(app){
   if(!state.topics.length){
     rows = `<div class="empty"><h3>No debates yet</h3><p>Be the first to start one — everyone who visits this site will see it.</p></div>`;
   } else if(!sorted.length){
-    rows = `<div class="empty"><h3>Nothing in this category yet</h3><p>Try another filter, or start one here.</p></div>`;
+    rows = state.membersOnlyFilter
+      ? `<div class="empty"><h3>No member debates yet</h3><p>Be the first Member to start one, or turn off the Members-only filter.</p></div>`
+      : `<div class="empty"><h3>Nothing in this category yet</h3><p>Try another filter, or start one here.</p></div>`;
   } else {
     rows = sorted.map(t => {
       const total = (t.proCount||0) + (t.conCount||0);
@@ -2151,9 +2159,12 @@ function renderList(app){
     <input type="text" id="search-input" class="search-input" placeholder="Search debates by title… (press /)" oninput="filterRowsBySearch(this.value)" style="margin-bottom:18px;">
     <div class="list-controls">
       <div class="category-filters">${chips}</div>
-      <div class="sort-toggle">
-        <button class="sort-btn ${state.sortMode==='newest'?'active':''}" onclick="setSortMode('newest')">Newest</button>
-        <button class="sort-btn ${state.sortMode==='top'?'active':''}" onclick="setSortMode('top')">Top voted</button>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <button class="member-filter-toggle ${state.membersOnlyFilter?'active':''}" onclick="toggleMembersOnlyFilter()">★ Members only</button>
+        <div class="sort-toggle">
+          <button class="sort-btn ${state.sortMode==='newest'?'active':''}" onclick="setSortMode('newest')">Newest</button>
+          <button class="sort-btn ${state.sortMode==='top'?'active':''}" onclick="setSortMode('top')">Top voted</button>
+        </div>
       </div>
     </div>
     ${rows}
@@ -2172,6 +2183,7 @@ function renderList(app){
 }
 function setCategoryFilter(c){ state.categoryFilter = c; render(); }
 function setSortMode(m){ state.sortMode = m; render(); }
+function toggleMembersOnlyFilter(){ state.membersOnlyFilter = !state.membersOnlyFilter; render(); }
 function filterRowsBySearch(q, skipStateUpdate){
   if(!skipStateUpdate) state.searchQuery = q;
   const query = (q || '').trim().toLowerCase();
@@ -2864,7 +2876,7 @@ function renderEditProfile(app){
 /* ---------- wire up window globals for inline onclick handlers ---------- */
 Object.assign(window, {
   goList, goNew, goInbox, openTopic, openChat, submitTopic, addArg, vote, voteTopic,
-  shareTopic, challengeAuthor, startChallenge, sendChatMsg, setCategoryFilter, setSortMode,
+  shareTopic, challengeAuthor, startChallenge, sendChatMsg, setCategoryFilter, setSortMode, toggleMembersOnlyFilter,
   openAuthModal, logOut, seedExampleDebate, openProfile, goEditProfile, submitProfile,
   handlePhotoFile, removePhoto, selectPolitical, selectAccentColor, toggleUserMenu,
   goEditTopic, deleteTopic, editArgument, deleteArgument, reportContent, toggleReplies, addReply,
