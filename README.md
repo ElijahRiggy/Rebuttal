@@ -225,8 +225,12 @@ Members can now cancel or manage their own subscription from inside Rebuttal, vi
 ### Member perks (current)
 
 - **Unlimited debates** (vs. one every 24 hours on the free plan)
-- **A "★ Member" badge** — shown on their profile, in the account menu, and to anyone chatting with them
+- **Priority placement** — debates created by members always sort above non-member debates on the homepage, regardless of the Newest/Top voted toggle
+- **A "★ Member" badge** — shown on their profile, in the account menu, on any debate they created, next to any argument they post, and to anyone chatting with them
+- **A "Debate owner" badge** — shows on a debate's creator whenever they post an argument on their own debate (this one isn't membership-gated — everyone's debate ownership is visible this way)
 - **A custom profile accent color** — a small colored ring around their avatar, picked from a palette in Edit Profile. Free accounts see a locked teaser pointing at the Membership page instead of the picker.
 - **Ad-free browsing**, once AdSense is live — the ad slot automatically hides for members and never re-appears for them. (Not visible yet since ads themselves aren't turned on.)
 
 Arguing, voting, and messaging stay unlimited for everyone regardless of membership — those were never gated, by design.
+
+**One honest limitation on the Member/priority badges specifically:** whether someone was a member is recorded on the debate or argument *at the moment they posted it*, not looked up live every time it's displayed — checking live membership for every single argument from every author on a busy debate would be expensive at scale. This means the badge can lag reality a little: if someone becomes a member today, their debates and arguments from last week won't retroactively show the badge (only new ones will); if a member's subscription lapses, their old posts still show the badge they had at the time. This is the same tradeoff most platforms make with "verified" badges, and is expected behavior, not a bug.

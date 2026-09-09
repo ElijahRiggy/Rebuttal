@@ -504,6 +504,10 @@
   .accent-swatch-none{background:var(--surface-sunken);color:var(--ink-mute);font-size:14px;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--hairline-strong);}
   .avatar-accent-ring{display:inline-block;border-radius:50%;padding:4px;background:var(--accent-ring-color);}
   .avatar-accent-ring .avatar{display:block;}
+
+  .member-badge-tiny{display:inline-block;vertical-align:middle;margin-left:6px;color:var(--amber);font-size:12px;}
+  .member-badge-tiny-row{display:inline-block;vertical-align:middle;margin-left:6px;color:var(--amber);font-size:13px;}
+  .owner-badge{display:inline-block;vertical-align:middle;margin-left:6px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--slate);background:var(--slate-tint);border-radius:8px;padding:2px 7px;}
   .dropdown-member-cta{display:block;text-align:center;font-family:'Public Sans',sans-serif;font-size:13.5px;font-weight:700;color:var(--amber);background:var(--amber-tint);border-radius:9px;padding:10px 12px;text-decoration:none;margin-bottom:4px;}
   .dropdown-member-cta:hover{opacity:.85;}
   .dropdown-member-note{font-size:12px;color:var(--amber);text-align:center;padding:8px 12px;font-weight:600;}
@@ -1088,7 +1092,7 @@ async function submitTopic(){
       const ref = await fb.addDoc(fb.collection(db, 'topics'), {
         title, description: desc, category,
         createdAt: fb.serverTimestamp(),
-        createdBy: state.user.uid, createdByName: state.user.displayName,
+        createdBy: state.user.uid, createdByName: state.user.displayName, creatorIsMember: isMember(),
         proCount: 0, conCount: 0, votes: 0, voterChoices: {}, closed: false
       });
       const nowTs = fb.serverTimestamp();
@@ -1182,7 +1186,7 @@ async function addArg(side){
     if(btn){ btn.disabled = true; btn.textContent = 'Posting…'; }
     await fb.addDoc(fb.collection(db, 'topics', state.currentTopicId, 'arguments'), {
       side, text, votes: 0, voterChoices: {}, topicId: state.currentTopicId,
-      author: state.user.displayName, authorUid: state.user.uid,
+      author: state.user.displayName, authorUid: state.user.uid, authorIsMember: isMember(),
       createdAt: fb.serverTimestamp()
     });
     await fb.updateDoc(fb.doc(db, 'topics', state.currentTopicId), {
@@ -2078,6 +2082,9 @@ function renderList(app){
 
   const filtered = state.categoryFilter === 'all' ? state.topics : state.topics.filter(t => t.category === state.categoryFilter);
   const sorted = [...filtered].sort((a, b) => {
+    const aMember = a.creatorIsMember ? 1 : 0;
+    const bMember = b.creatorIsMember ? 1 : 0;
+    if(aMember !== bMember) return bMember - aMember; // Member-created debates get priority placement
     if(state.sortMode === 'top') return (b.votes||0) - (a.votes||0);
     const at = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : a.createdAt) : 0;
     const bt = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : b.createdAt) : 0;
@@ -2106,7 +2113,7 @@ function renderList(app){
           <div>
             ${isTrending ? `<span class="trending-tag">Trending</span>` : ''}
             <div class="category-badge">${esc(t.category || 'Other')}</div>
-            <p class="row-title">${esc(t.title)}</p>
+            <p class="row-title">${esc(t.title)}${t.creatorIsMember ? `<span class="member-badge member-badge-tiny-row">★</span>` : ''}</p>
             ${t.description ? `<p class="row-desc">${esc(t.description)}</p>` : ''}
           </div>
         </div>
@@ -2268,7 +2275,9 @@ function renderMembership(app){
         <p class="pricing-desc">Cancel any time.</p>
         <ul class="pricing-checklist">
           ${checkItem('Unlimited debates, any time')}
-          ${checkItem('Member badge on your profile')}
+          ${checkItem('Your debates get priority placement')}
+          ${checkItem('Member badge on your profile, comments &amp; chats')}
+          ${checkItem('Custom profile accent color')}
           ${checkItem('Directly supports Rebuttal')}
         </ul>
         <a class="btn primary membership-buy-btn" href="${MEMBERSHIP_URL}" target="_blank" rel="noopener">Become a Member</a>
@@ -2458,6 +2467,7 @@ function renderTopic(app){
   const cardHtml = (a, rank) => {
     const myChoice = state.user && a.voterChoices ? a.voterChoices[state.user.uid] : null;
     const isOwner = state.user && a.authorUid === state.user.uid;
+    const isDebateCreator = a.authorUid && topic.createdBy && a.authorUid === topic.createdBy;
     const canChallenge = a.authorUid && (!state.user || a.authorUid !== state.user.uid) && !topic.closed;
     const replyCount = a.replyCount || 0;
     const topVotes = a.side === 'pro' ? topProVotes : topConVotes;
@@ -2466,7 +2476,7 @@ function renderTopic(app){
       ${isTop ? `<p class="top-badge">Most convincing</p>` : ''}
       <p class="arg-rank">${rank}</p>
       <p class="arg-text">${esc(a.text)}${a.editedAt ? ' <span class="edited-tag">(edited)</span>' : ''}</p>
-      <p class="arg-meta">${a.author && a.authorUid ? `<span class="author-link" onclick="event.stopPropagation();openProfile('${a.authorUid}')">${esc(a.author)}</span>` : (a.author ? esc(a.author) : 'anonymous')} — ${timeAgo(a.createdAt)}</p>
+      <p class="arg-meta">${a.author && a.authorUid ? `<span class="author-link" onclick="event.stopPropagation();openProfile('${a.authorUid}')">${esc(a.author)}</span>` : (a.author ? esc(a.author) : 'anonymous')}${a.authorIsMember ? `<span class="member-badge member-badge-tiny">★</span>` : ''}${isDebateCreator ? `<span class="owner-badge">Debate owner</span>` : ''} — ${timeAgo(a.createdAt)}</p>
       <div class="arg-foot">
         <div class="vote-widget">
           <button class="vote-arrow up ${myChoice==='up'?'active':''}" onclick="vote('${a.id}','up')">&#9650;</button>
@@ -2491,7 +2501,7 @@ function renderTopic(app){
     <div class="topic-head-row">
       <div class="topic-head">
         <div class="category-badge">${esc(topic.category || 'Other')}</div>
-        <h1>${esc(topic.title)}</h1>
+        <h1>${esc(topic.title)}${topic.creatorIsMember ? `<span class="member-badge member-badge-inline">★ Member</span>` : ''}</h1>
         ${topic.description ? `<p>${esc(topic.description)}</p>` : ''}
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
