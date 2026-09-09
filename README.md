@@ -97,7 +97,10 @@ service cloud.firestore {
     }
     match /users/{uid} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['isMember','membershipType','stripeCustomerId','membershipGrantedAt','membershipRevokedAt']);
     }
     match /reports/{reportId} {
       allow read: if false;
@@ -193,6 +196,22 @@ Free accounts can start **one new debate every 5 hours**. Arguing, voting, reply
 **That gets payments working. Turning a payment into an unlocked account still needs one more step**, and you have two options:
 
 - **Manual (works today, zero extra building):** Stripe emails you when someone subscribes. Open Firestore's **Data** tab, find that person's document under `users`, and add a field `isMember` set to `true` (boolean). They'll see the Member badge and unlimited debates on their next page load. To revoke it if someone cancels, Stripe also emails you about that — just flip the field back to `false`.
-- **Automated (bigger lift, but genuinely free):** since you're already hosting on Vercel, its free tier includes serverless functions — a small API endpoint that receives Stripe's webhook events (`checkout.session.completed` for new members, `customer.subscription.deleted` for cancellations) and writes `isMember` to Firestore automatically using the Firebase Admin SDK. Unlike Ko-fi, Stripe's webhooks reliably report *both* the start and the end of a subscription, so this can be fully automatic in both directions. This is a real, separate piece of infrastructure (a new API route, Stripe webhook secret, and a Firebase service account key stored as a Vercel environment variable) — ask if you want this built next.
+- **Automated (bigger lift, but genuinely free):** since you're already hosting on Vercel, its free tier includes serverless functions — a small API endpoint that receives Stripe's webhook events (`checkout.session.completed` for new members, `customer.subscription.deleted` for cancellations) and writes `isMember` to Firestore automatically using the Firebase Admin SDK. Unlike Ko-fi, Stripe's webhooks reliably report *both* the start and the end of a subscription, so this can be fully automatic in both directions. This is now built — see the walkthrough below.
 
-Update your Firestore rules to the version below regardless — it adds the server-side half of the cooldown check and needs to be live before members actually skip the wait.
+Update your Firestore rules to the version below regardless — it adds the server-side half of the cooldown check, and now also blocks the client from ever setting `isMember` on its own account directly (previously, since your own account can edit its own profile, someone could technically have opened the browser console and granted themselves membership for free — this closes that).
+
+### Automated Stripe webhook — full setup
+
+This is now built and live in the code, in `api/stripe-webhook.js`, plus a `package.json` so Vercel knows to install its two dependencies (`stripe` and `firebase-admin`). It listens for two events: a successful payment (grants membership) and a cancelled subscription (revokes it — never touches lifetime members, since they don't have a subscription to cancel in the first place). Three things need to be set up before it actually works:
+
+1. **Get a Firebase service account key.** Firebase Console → your project → the gear icon → Project settings → **Service accounts** tab → **Generate new private key**. This downloads a JSON file — keep it private, it's essentially a master key to your database.
+2. **Add three environment variables in Vercel.** Vercel Dashboard → your project → Settings → Environment Variables. Add:
+   - `STRIPE_SECRET_KEY` — from Stripe Dashboard → Developers → API keys (the **secret** key, not the publishable one)
+   - `STRIPE_WEBHOOK_SECRET` — you'll get this in the next step
+   - `FIREBASE_SERVICE_ACCOUNT_KEY` — open the JSON file from step 1 and paste its *entire contents* as the value (it's fine that it's long)
+3. **Register the webhook endpoint in Stripe.** Stripe Dashboard → Developers → Webhooks → **Add endpoint**. The URL is `https://rebuttaldebate.vercel.app/api/stripe-webhook` (swap in your real domain if different). Under "Select events," add exactly two: `checkout.session.completed` and `customer.subscription.deleted`. After creating it, Stripe shows you a **Signing secret** (starts with `whsec_`) — copy that into the `STRIPE_WEBHOOK_SECRET` variable in Vercel from step 2.
+4. **Push this code and redeploy.** Vercel will pick up the new `api/` folder automatically and install the dependencies from `package.json`.
+5. **Test it.** Stripe Dashboard → Developers → Webhooks → your endpoint → **Send test webhook**, pick `checkout.session.completed`, and send it. Check Vercel's function logs (your project → Deployments → the deployment → Functions) to see if it ran without errors. Note: a *test* webhook uses a fake email, so it'll log "No Rebuttal account found" — that's expected and means the signature verification and connection all worked; it just couldn't find a matching account for the fake test email, which is correct.
+6. **Do one real end-to-end test with a real account** before trusting it fully: sign up for your own Monthly membership with a real card (you can refund yourself after), confirm `isMember` actually flips to `true` on your Firestore user doc within a few seconds, then cancel the subscription in Stripe and confirm it flips back to `false`.
+
+One honest limitation: this matches payments to accounts **by email**. If someone pays with a different email than the one their Rebuttal account uses, the webhook won't find a match (you'll see it in the function logs) and you'd need to grant it manually that one time.

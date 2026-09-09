@@ -1,0 +1,10 @@
+{
+  "name": "rebuttal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rebuttal debate platform — static site plus a Stripe webhook serverless function.",
+  "dependencies": {
+    "stripe": "^17.0.0",
+    "firebase-admin": "^12.6.0"
+  }
+}

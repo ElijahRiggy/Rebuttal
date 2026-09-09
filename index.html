@@ -2773,6 +2773,20 @@ Object.assign(window, {
   markAllNotificationsRead, setArgSortMode, toggleCloseTopic, goTerms, goPrivacy, goAbout, goMembership, deleteMyAccount
 });
 
+function checkMembershipReturn(){
+  const params = new URLSearchParams(location.search);
+  if(params.get('membership') === 'success'){
+    const isLifetime = params.get('lifetime') === '1';
+    showToast(isLifetime
+      ? "Thanks for getting Lifetime access! We'll activate your account shortly."
+      : "Thanks for becoming a Member! We'll activate your account shortly.");
+    params.delete('membership');
+    params.delete('lifetime');
+    const newSearch = params.toString();
+    history.replaceState({}, '', location.pathname + (newSearch ? '?' + newSearch : ''));
+  }
+}
+
 /* ---------- init ---------- */
 window.addEventListener('popstate', () => {
   const id = new URLSearchParams(location.search).get('topic');
@@ -2807,6 +2821,7 @@ if(NEEDS_SETUP){
   subscribeTopics();
   const initialId = new URLSearchParams(location.search).get('topic');
   if(initialId) openTopic(initialId); else render();
+  checkMembershipReturn();
   document.addEventListener('click', (e) => {
     if(state.userMenuOpen && !e.target.closest('.user-menu')){
       state.userMenuOpen = false;
