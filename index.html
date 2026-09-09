@@ -135,6 +135,30 @@
   }
   .support-btn:hover{background:var(--wine-hover);box-shadow:var(--shadow-md);transform:translateY(-1px);}
   .support-btn::before{content:'♥';font-size:14px;line-height:1;}
+
+  .member-btn{
+    display:inline-flex;align-items:center;gap:6px;
+    font-family:'Public Sans',sans-serif;font-size:15px;font-weight:700;color:var(--amber);
+    background:var(--amber-tint);border:1.5px solid var(--amber);border-radius:22px;padding:9px 18px;cursor:pointer;
+    white-space:nowrap;transition:background .15s,transform .15s;
+  }
+  .member-btn:hover{background:var(--amber);color:#fff;transform:translateY(-1px);}
+  .member-btn-active{background:var(--amber);color:#fff;}
+
+  /* Membership page */
+  .membership-hero{max-width:640px;margin-bottom:36px;}
+  .membership-eyebrow{display:inline-block;font-size:12.5px;font-weight:700;color:var(--amber);background:var(--amber-tint);border-radius:12px;padding:4px 12px;margin-bottom:14px;}
+  .membership-hero h1{font-family:'Manrope',sans-serif;font-size:38px;font-weight:800;letter-spacing:-0.02em;margin:0 0 14px;}
+  .membership-hero p{font-size:16px;color:var(--ink-soft);line-height:1.6;margin:0;}
+  .membership-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px;}
+  @media (max-width:720px){ .membership-grid{grid-template-columns:1fr;} }
+  .membership-feature{background:var(--surface);border:1px solid var(--hairline);border-radius:16px;padding:22px;}
+  .membership-feature h3{font-family:'Manrope',sans-serif;font-size:16px;font-weight:800;margin:0 0 8px;}
+  .membership-feature p{font-size:13.5px;color:var(--ink-soft);line-height:1.55;margin:0;}
+  .membership-cta{text-align:center;padding:36px;background:var(--surface);border:1px solid var(--hairline);border-radius:20px;}
+  .membership-buy-btn{font-size:16px;padding:14px 32px;border-radius:26px;text-decoration:none;display:inline-block;}
+  .membership-fine-print{font-size:12.5px;color:var(--ink-mute);margin:14px 0 0;}
+  .membership-cta-active{background:var(--amber-tint);color:var(--amber);font-weight:700;border-color:var(--amber);}
   .messages-nav{
     font-family:'Public Sans',sans-serif;font-size:14.5px;font-weight:600;color:var(--ink-soft);
     background:var(--surface-sunken);border:none;border-radius:20px;padding:8px 16px;cursor:pointer;
@@ -999,7 +1023,7 @@ async function submitTopic(){
       : 0;
     const waitMs = TOPIC_COOLDOWN_MS - (Date.now() - lastPostAt);
     if(waitMs > 0){
-      errEl.innerHTML = `You can start one debate every 5 hours — try again in ${formatCooldown(waitMs)}, or <a href="#" onclick="event.preventDefault();goAbout();">become a Member</a> to skip the wait.`;
+      errEl.innerHTML = `You can start one debate every 5 hours — try again in ${formatCooldown(waitMs)}, or <a href="#" onclick="event.preventDefault();goMembership();">become a Member</a> to skip the wait.`;
       errEl.style.display = 'block';
       return;
     }
@@ -1833,6 +1857,7 @@ function render(){
   else if(state.view === 'edit-profile') renderEditProfile(app);
   else if(state.view === 'notifications') renderNotifications(app);
   else if(state.view === 'about') renderAbout(app);
+  else if(state.view === 'membership') renderMembership(app);
   else if(state.view === 'terms') renderTerms(app);
   else if(state.view === 'privacy') renderPrivacy(app);
   if(viewChanged){
@@ -1915,10 +1940,14 @@ function renderHeader(){
   const notifCount = appUnreadCount();
   const myPhoto = state.myProfile && state.myProfile.photoURL;
   const supportBtn = `<a class="support-btn" href="${SUPPORT_URL}" target="_blank" rel="noopener">Support Rebuttal</a>`;
+  const memberNavBtn = isMember()
+    ? `<button class="member-btn member-btn-active" onclick="goMembership()">&#9733; Member</button>`
+    : `<button class="member-btn" onclick="goMembership()">&#9733; Become a Member</button>`;
   const memberBadge = isMember() ? `<span class="member-badge">Member</span>` : '';
   const authSection = state.user
     ? `<div class="auth-nav">
         ${supportBtn}
+        ${memberNavBtn}
         <button class="messages-nav ${state.view==='notifications' ? 'active' : ''}" onclick="goNotifications()" title="Notifications">&#128276;${notifCount ? ` <span class="badge-dot">${notifCount}</span>` : ''}</button>
         <button class="messages-nav ${state.view==='inbox'||state.view==='chat' ? 'active' : ''}" onclick="goInbox()">messages${count ? ` <span class="badge-dot">${count}</span>` : ''}</button>
         <div class="user-menu">
@@ -1929,10 +1958,6 @@ function renderHeader(){
             <svg class="chev" viewBox="0 0 12 8" width="10" height="7"><path d="M1 1L6 6L11 1" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           ${state.userMenuOpen ? `<div class="user-menu-dropdown">
-            ${isMember()
-              ? `<div class="dropdown-member-note">You're a Member — unlimited debates, no wait.</div>`
-              : `<a class="dropdown-member-cta" href="${MEMBERSHIP_URL}" target="_blank" rel="noopener">&#9733; Become a Member</a>`}
-            <div class="user-menu-divider"></div>
             <button onclick="toggleUserMenu();openProfile('${state.user.uid}')">View profile</button>
             <button onclick="toggleUserMenu();goEditProfile()">Edit profile</button>
             <button onclick="toggleNotifications()">${state.notificationsEnabled ? 'Browser notifications: on' : 'Enable browser notifications'}</button>
@@ -1944,6 +1969,7 @@ function renderHeader(){
       </div>`
     : `<div class="auth-nav">
         ${supportBtn}
+        ${memberNavBtn}
         <button class="messages-nav" onclick="toggleDarkMode()" title="Toggle theme">${state.darkMode ? 'Light' : 'Dark'}</button>
         <button class="auth-btn" onclick="openAuthModal('login')">Log in</button>
         <button class="auth-btn filled" onclick="openAuthModal('signup')">Sign up</button>
@@ -2083,6 +2109,12 @@ function goAbout(){
   pushUrl('');
   render();
 }
+function goMembership(){
+  cleanupTopicSubs(); cleanupChatSubs();
+  state.view = 'membership';
+  pushUrl('');
+  render();
+}
 function goTerms(){
   cleanupTopicSubs(); cleanupChatSubs();
   state.view = 'terms';
@@ -2105,8 +2137,41 @@ function renderAbout(app){
     <h2>Support Rebuttal</h2>
     <p>Rebuttal doesn't run ads (yet) and isn't trying to sell you anything. If you'd like to help keep it running, you can <a href="${SUPPORT_URL}" target="_blank" rel="noopener">support it on Ko-fi</a> — entirely optional, one-time or recurring on your terms, and never required to use any part of the site.</p>
     <h2>Membership</h2>
-    <p>Free accounts can start one new debate every 5 hours — arguing, voting, and messaging are unlimited either way. <a href="${MEMBERSHIP_URL}" target="_blank" rel="noopener">Members</a> can start as many debates as they want, whenever they want, plus get a badge next to their name. This is separate from Ko-fi support above — one's a subscription with a feature attached, the other's just a tip jar.</p>
+    <p>Free accounts can start one new debate every 5 hours — arguing, voting, and messaging are unlimited either way. <a href="#" onclick="event.preventDefault();goMembership();">Members</a> can start as many debates as they want, whenever they want, plus get a badge next to their name. This is separate from Ko-fi support above — one's a subscription with a feature attached, the other's just a tip jar.</p>
   `);
+}
+
+function renderMembership(app){
+  const member = isMember();
+  app.innerHTML = renderHeader() + `
+    <button class="back" onclick="goList()">&larr; all debates</button>
+    <div class="membership-hero">
+      <span class="membership-eyebrow">Rebuttal Membership</span>
+      <h1>Debate without the wait.</h1>
+      <p>Free accounts can start a new debate every 5 hours. Members can start as many as they want, whenever they want — arguing, voting, and messaging are already unlimited for everyone.</p>
+    </div>
+    <div class="membership-grid">
+      <div class="membership-feature">
+        <h3>Unlimited debates</h3>
+        <p>No 5-hour wait between starting new debates. Post as many as you actually have things to say about.</p>
+      </div>
+      <div class="membership-feature">
+        <h3>Member badge</h3>
+        <p>A small badge next to your name, visible to anyone who opens your profile.</p>
+      </div>
+      <div class="membership-feature">
+        <h3>Supports the site directly</h3>
+        <p>Membership revenue goes straight to keeping Rebuttal running and improving.</p>
+      </div>
+    </div>
+    ${member
+      ? `<div class="membership-cta membership-cta-active">You're already a Member — thank you for supporting Rebuttal.</div>`
+      : `<div class="membership-cta">
+          <a class="btn primary membership-buy-btn" href="${MEMBERSHIP_URL}" target="_blank" rel="noopener">Become a Member</a>
+          <p class="membership-fine-print">Handled securely by Stripe. Cancel any time.</p>
+        </div>`}
+    ${renderFooter()}
+  `;
 }
 
 function renderLegalShell(app, title, bodyHtml){
@@ -2201,7 +2266,7 @@ function renderNew(app){
     const waitMs = TOPIC_COOLDOWN_MS - (Date.now() - lastPostAt);
     if(waitMs > 0){
       blockSubmit = true;
-      cooldownBanner = `<div class="banner">You can start one debate every 5 hours on the free plan — this one opens up again in <strong>${formatCooldown(waitMs)}</strong>. <a href="${MEMBERSHIP_URL}" target="_blank" rel="noopener">Become a Member</a> for unlimited debates, any time.</div>`;
+      cooldownBanner = `<div class="banner">You can start one debate every 5 hours on the free plan — this one opens up again in <strong>${formatCooldown(waitMs)}</strong>. <a href="#" onclick="event.preventDefault();goMembership();">Become a Member</a> for unlimited debates, any time.</div>`;
     }
   }
 
@@ -2652,7 +2717,7 @@ Object.assign(window, {
   goEditTopic, deleteTopic, editArgument, deleteArgument, reportContent, toggleReplies, addReply,
   deleteMessage, blockUserProfile, unblockUserProfile, resendVerification, dismissVerifyBanner, filterRowsBySearch,
   toggleNotifications, toggleDarkMode, followUser, unfollowUser, goNotifications, openNotification,
-  markAllNotificationsRead, setArgSortMode, toggleCloseTopic, goTerms, goPrivacy, goAbout, deleteMyAccount
+  markAllNotificationsRead, setArgSortMode, toggleCloseTopic, goTerms, goPrivacy, goAbout, goMembership, deleteMyAccount
 });
 
 /* ---------- init ---------- */
